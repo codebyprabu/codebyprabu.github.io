@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Stacker</title>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #1a1a2e;
+            --text-color: #eaeaea;
+            --accent: #e94560;
+            --block-base: #0f3460;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            touch-action: manipulation;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            height: 100%;
+            max-height: 600px;
+            background-color: var(--bg-color);
+            overflow: hidden;
+            cursor: pointer; /*暗示 bisa diklik */
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* UI */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            color: white;
+            text-align: center;
+        }
+
+        .hidden { opacity: 0; pointer-events: none; }
+
+        h1 {
+            font-size: 3rem;
+            margin: 0;
+            color: var(--accent);
+            text-transform: uppercase;
+            text-shadow: 0 0 20px var(--accent);
+        }
+
+        p { color: #bbb; margin: 10px 0 30px; }
+
+        button {
+            padding: 15px 40px;
+            font-size: 1rem;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.1s;
+        }
+        button:active { transform: scale(0.95); }
+
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            font-size: 2rem;
+            color: white;
+            font-weight: bold;
+            z-index: 5;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="hud" class="hidden">
+            SKOR: <span id="scoreVal">0</span>
+        </div>
+
+        <div id="startScreen" class="overlay">
+            <h1>NEON<br>STACKER</h1>
+            <p>Hentikan balok tepat di atas balok sebelumnya.</p>
+            <button id="startBtn">MULAI</button>
+        </div>
+
+        <div id="gameOverScreen" class="overlay hidden">
+            <h1 style="font-size: 2rem;">GAGAL!</h1>
+            <p>Tinggi Menara: <span id="finalScore">0</span></p>
+            <p>Rekor: <span id="highScore">0</span></p>
+            <button id="restartBtn">MAIN LAGI</button>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            // --- SETUP CANVAS ---
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Ukuran dinamis mengikuti container
+            function resizeCanvas() {
+                canvas.width = $('#gameContainer').width();
+                canvas.height = $('#gameContainer').height();
+            }
+            resizeCanvas();
+            $(window).on('resize', resizeCanvas);
+
+            // --- GAME STATE ---
+            let state = 'MENU';
+            let score = 0;
+            let highScore = localStorage.getItem('neonStackHigh') || 0;
+            
+            // --- CONFIG ---
+            const BLOCK_HEIGHT = 40;
+            let blocks = [];
+            let currentBlock = null;
+            let fallingPiece = null;
+            let cameraY = 0;
+            let speed = 3;
+
+            // --- WARNA ---
+            // Kita buat gradien warna berdasarkan skor
+            function getColor(score) {
+                const hue = (score * 15) % 360; // Warna berubah setiap skor naik
+                return `hsl(${hue}, 70%, 50%)`;
+            }
+
+            // --- LOGIC ---
+
+            function initGame() {
+                blocks = [];
+                score = 0;
+                cameraY = 0;
+                speed = 3;
+                fallingPiece = null;
+
+                // Base Block (Platform awal)
+                const baseBlock = {
+                    x: canvas.width / 2 - 100,
+                    y: canvas.height - 50,
+                    width: 200,
+                    color: '#fff'
+                };
+                blocks.push(baseBlock);
+
+                // Block Pertama
+                spawnBlock();
+                
+                $('#scoreVal').text(0);
+            }
+
+            function spawnBlock() {
+                const lastBlock = blocks[blocks.length - 1];
+                
+                // Block baru muncul dari luar layar (kiri atau kanan)
+                const direction = Math.random() > 0.5 ? 1 : -1;
+                const startX = direction === 1 ? -lastBlock.width : canvas.width;
+
+                currentBlock = {
+                    x: startX,
+                    y: lastBlock.y - BLOCK_HEIGHT, // Di atas block sebelumnya
+                    width: lastBlock.width,
+                    color: getColor(score),
+                    direction: direction,
+                    speed: speed
+                };
+
+                // Naikkan kecepatan
+                if (score > 0 && score % 5 === 0) {
+                    speed += 0.5;
+                }
+            }
+
+            function placeBlock() {
+                if (!currentBlock) return;
+
+                const lastBlock = blocks[blocks.length - 1];
+                
+                // Kalkulasi overlap
+                const overlapStart = Math.max(currentBlock.x, lastBlock.x);
+                const overlapEnd = Math.min(currentBlock.x + currentBlock.width, lastBlock.x + lastBlock.width);
+                const overlapWidth = overlapEnd - overlapStart;
+
+                if (overlapWidth <= 0) {
+                    // GAGAL TOTAL (tidak ada yang numpuk)
+                    createFallingPiece(currentBlock.x, currentBlock.y, currentBlock.width, currentBlock.color);
+                    gameOver();
+                    return;
+                }
+
+                // BAGIAN YANG JATUH
+                // Jika tidak pas, potong sisanya
+                if (overlapWidth < currentBlock.width) {
+                    let cutX, cutWidth;
+                    
+                    // Tentukan sisa yang jatuh (kiri atau kanan)
+                    if (currentBlock.x < lastBlock.x) {
+                        // Sisa kiri jatuh
+                        cutX = currentBlock.x;
+                        cutWidth = lastBlock.x - currentBlock.x;
+                    } else {
+                        // Sisa kanan jatuh
+                        cutX = overlapEnd;
+                        cutWidth = (currentBlock.x + currentBlock.width) - overlapEnd;
+                    }
+                    
+                    createFallingPiece(cutX, currentBlock.y, cutWidth, currentBlock.color);
+                }
+
+                // BAGIAN YANG NAMPAK
+                const newBlock = {
+                    x: overlapStart,
+                    y: currentBlock.y,
+                    width: overlapWidth,
+                    color: currentBlock.color
+                };
+                blocks.push(newBlock);
+
+                score++;
+                $('#scoreVal').text(score);
+
+                // Kamera mengikuti ke atas
+                // Jika tumpukan mendekati setengah layar, geser kamera
+                const threshold = canvas.height / 2;
+                if (newBlock.y < threshold + cameraY) {
+                    // Target kamera adalah posisi Y block diset ke tengah
+                    // Kita smooth kan nanti di draw
+                    cameraY = newBlock.y - threshold;
+                }
+
+                currentBlock = null;
+                
+                // Spawn berikutnya
+                spawnBlock();
+            }
+
+            function createFallingPiece(x, y, w, color) {
+                fallingPiece = {
+                    x: x,
+                    y: y,
+                    width: w,
+                    height: BLOCK_HEIGHT,
+                    color: color,
+                    velY: 0,
+                    velX: (Math.random() - 0.5) * 2, // Sedikit melayang
+                    rotation: 0,
+                    rotationSpeed: (Math.random() - 0.5) * 0.2
+                };
+            }
+
+            function update() {
+                if (state !== 'PLAYING') return;
+
+                // Gerakkan current block
+                if (currentBlock) {
+                    currentBlock.x += currentBlock.speed * currentBlock.direction;
+
+                    // Pantulkan jika menyentuh pinggir (biar gampang, atau bisa buat game over)
+                    // Di game stacker klasik, bolak balik.
+                    // Logika bolak balik:
+                    const rightBound = canvas.width;
+                    if (currentBlock.x + currentBlock.width > rightBound) {
+                        currentBlock.x = rightBound - currentBlock.width;
+                        currentBlock.direction *= -1;
+                    }
+                    if (currentBlock.x < 0) {
+                        currentBlock.x = 0;
+                        currentBlock.direction *= -1;
+                    }
+                }
+
+                // Update falling piece
+                if (fallingPiece) {
+                    fallingPiece.velY += 0.8; // Gravitasi
+                    fallingPiece.y += fallingPiece.velY;
+                    fallingPiece.x += fallingPiece.velX;
+                    fallingPiece.rotation += fallingPiece.rotationSpeed;
+
+                    // Hapus jika sudah jatuh ke bawah
+                    if (fallingPiece.y > canvas.height + 100) {
+                        fallingPiece = null;
+                    }
+                }
+            }
+
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.save();
+                // Terapkan kamera (geser semua ke bawah, effenya scroll up)
+                ctx.translate(0, -cameraY);
+
+                // Draw Stacked Blocks
+                for (let b of blocks) {
+                    ctx.fillStyle = b.color;
+                    ctx.fillRect(b.x, b.y, b.width, BLOCK_HEIGHT);
+                    
+                    // Efek 3D samping
+                    ctx.fillStyle = "rgba(0,0,0,0.1)";
+                    ctx.fillRect(b.x, b.y, b.width, 5); // shadow top
+                }
+
+                // Draw Current Moving Block
+                if (currentBlock) {
+                    ctx.fillStyle = currentBlock.color;
+                    ctx.fillRect(currentBlock.x, currentBlock.y, currentBlock.width, BLOCK_HEIGHT);
+                }
+
+                // Draw Falling Piece
+                if (fallingPiece) {
+                    ctx.save();
+                    ctx.translate(fallingPiece.x + fallingPiece.width/2, fallingPiece.y + fallingPiece.height/2);
+                    ctx.rotate(fallingPiece.rotation);
+                    ctx.fillStyle = fallingPiece.color;
+                    ctx.fillRect(-fallingPiece.width/2, -fallingPiece.height/2, fallingPiece.width, fallingPiece.height);
+                    ctx.restore();
+                }
+
+                ctx.restore();
+            }
+
+            function loop() {
+                update();
+                draw();
+                requestAnimationFrame(loop);
+            }
+
+            // --- EVENTS ---
+            function handleInput() {
+                if (state === 'PLAYING') {
+                    placeBlock();
+                }
+            }
+
+            $('#gameContainer').on('click touchstart', function(e) {
+                if (state === 'MENU') return;
+                e.preventDefault();
+                handleInput();
+            });
+
+            $(document).on('keydown', function(e) {
+                if (e.code === 'Space') {
+                    if (state === 'MENU') return;
+                    e.preventDefault();
+                    handleInput();
+                }
+            });
+
+            $('#startBtn').click(startGame);
+            $('#restartBtn').click(startGame);
+
+            function startGame() {
+                state = 'PLAYING';
+                initGame();
+                $('#startScreen').addClass('hidden');
+                $('#gameOverScreen').addClass('hidden');
+                $('#hud').removeClass('hidden');
+            }
+
+            function gameOver() {
+                state = 'GAMEOVER';
+                currentBlock = null;
+                
+                setTimeout(() => {
+                    if (score > highScore) {
+                        highScore = score;
+                        localStorage.setItem('neonStackHigh', highScore);
+                    }
+                    $('#finalScore').text(score);
+                    $('#highScore').text(highScore);
+                    $('#gameOverScreen').removeClass('hidden');
+                    $('#hud').addClass('hidden');
+                }, 500); // Delay sedikit biar liat potongan jatuh
+            }
+
+            // Start loop
+            loop();
+        });
+    </script>
+</body>
+</html>
