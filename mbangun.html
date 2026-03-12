@@ -3,21 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Stacker</title>
+    <title>Paper Stacker</title>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <style>
         :root {
-            --bg-color: #1a1a2e;
-            --text-color: #eaeaea;
-            --accent: #e94560;
-            --block-base: #0f3460;
+            --bg-sky: #ebf2fa;
+            --text-main: #2b2d42;
+            --ui-bg: rgba(255, 255, 255, 0.9);
+            --accent: #ef233c;
         }
 
         body {
             margin: 0;
             padding: 0;
-            background-color: #000;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #8d99ae;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
             overflow: hidden;
             display: flex;
             justify-content: center;
@@ -31,31 +31,34 @@
             width: 100%;
             max-width: 400px;
             height: 100%;
-            max-height: 600px;
-            background-color: var(--bg-color);
+            max-height: 700px;
+            background-color: var(--bg-sky);
             overflow: hidden;
-            cursor: pointer; /*暗示 bisa diklik */
+            box-shadow: 0 0 50px rgba(0,0,0,0.2);
+            user-select: none;
         }
 
         canvas {
             display: block;
+            cursor: pointer;
         }
 
-        /* UI */
+        /* UI Overlays */
         .overlay {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.85);
+            background: rgba(255, 255, 255, 0.95);
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             z-index: 10;
-            color: white;
+            color: var(--text-main);
             text-align: center;
+            transition: opacity 0.3s;
         }
 
         .hidden { opacity: 0; pointer-events: none; }
@@ -63,38 +66,48 @@
         h1 {
             font-size: 3rem;
             margin: 0;
-            color: var(--accent);
-            text-transform: uppercase;
-            text-shadow: 0 0 20px var(--accent);
+            font-weight: 800;
+            color: #2b2d42;
+            letter-spacing: -2px;
         }
+        h2 { font-size: 1rem; color: #8d99ae; text-transform: uppercase; letter-spacing: 2px; }
 
-        p { color: #bbb; margin: 10px 0 30px; }
+        p { color: #555; margin: 10px 0 30px; line-height: 1.5; }
 
         button {
             padding: 15px 40px;
             font-size: 1rem;
-            background: var(--accent);
+            background: var(--text-main);
             color: white;
             border: none;
-            border-radius: 50px;
+            border-radius: 4px;
             cursor: pointer;
             font-weight: bold;
             transition: transform 0.1s;
+            box-shadow: 0 4px 0 #ef233c;
+            position: relative;
+            z-index: 20; /* Ensure button is on top */
         }
-        button:active { transform: scale(0.95); }
+        button:active { transform: translateY(4px); box-shadow: 0 0 0 #ef233c; }
 
         #hud {
             position: absolute;
-            top: 20px;
+            top: 30px;
             left: 0;
             width: 100%;
-            display: flex;
-            justify-content: center;
-            font-size: 2rem;
-            color: white;
-            font-weight: bold;
+            text-align: center;
             z-index: 5;
             pointer-events: none;
+        }
+        
+        #scoreDisplay {
+            font-size: 4rem;
+            font-weight: 900;
+            color: rgba(43, 45, 66, 0.1);
+            position: absolute;
+            width: 100%;
+            top: 20px;
+            left: 0;
         }
     </style>
 </head>
@@ -104,20 +117,22 @@
         <canvas id="gameCanvas"></canvas>
         
         <div id="hud" class="hidden">
-            SKOR: <span id="scoreVal">0</span>
+            <div id="scoreDisplay">0</div>
         </div>
 
         <div id="startScreen" class="overlay">
-            <h1>NEON<br>STACKER</h1>
-            <p>Hentikan balok tepat di atas balok sebelumnya.</p>
-            <button id="startBtn">MULAI</button>
+            <h2>Paper Games</h2>
+            <h1>STACKER</h1>
+            <p>Tumpuk kertas dengan tepat.<br>Blok yang tidak pas akan terpotong.</p>
+            <button id="startBtn">MAIN</button>
         </div>
 
         <div id="gameOverScreen" class="overlay hidden">
-            <h1 style="font-size: 2rem;">GAGAL!</h1>
-            <p>Tinggi Menara: <span id="finalScore">0</span></p>
-            <p>Rekor: <span id="highScore">0</span></p>
-            <button id="restartBtn">MAIN LAGI</button>
+            <h2>Permainan Selesai</h2>
+            <h1 style="font-size: 2rem; margin-bottom: 10px;">Tumpukan Jatuh!</h1>
+            <p>Skor Akhir: <b><span id="finalScore">0</span></b></p>
+            <p style="font-size: 0.8rem; color: #aaa;">Rekor: <span id="highScore">0</span></p>
+            <button id="restartBtn">ULANGI</button>
         </div>
     </div>
 
@@ -127,10 +142,12 @@
             const canvas = document.getElementById('gameCanvas');
             const ctx = canvas.getContext('2d');
             
-            // Ukuran dinamis mengikuti container
+            let W, H;
             function resizeCanvas() {
-                canvas.width = $('#gameContainer').width();
-                canvas.height = $('#gameContainer').height();
+                W = $('#gameContainer').width();
+                H = $('#gameContainer').height();
+                canvas.width = W;
+                canvas.height = H;
             }
             resizeCanvas();
             $(window).on('resize', resizeCanvas);
@@ -138,215 +155,240 @@
             // --- GAME STATE ---
             let state = 'MENU';
             let score = 0;
-            let highScore = localStorage.getItem('neonStackHigh') || 0;
+            let highScore = localStorage.getItem('paperStackHigh') || 0;
+            let canPlace = true; // Flag untuk mencegah double click
             
             // --- CONFIG ---
             const BLOCK_HEIGHT = 40;
+            const INITIAL_WIDTH = 200;
+            
+            // --- OBJECTS ---
             let blocks = [];
             let currentBlock = null;
-            let fallingPiece = null;
+            let fallingPieces = [];
             let cameraY = 0;
-            let speed = 3;
+            let targetCameraY = 0;
+            
+            // Movement
+            let baseSpeed = 3.5;
+            let speed = baseSpeed;
 
-            // --- WARNA ---
-            // Kita buat gradien warna berdasarkan skor
-            function getColor(score) {
-                const hue = (score * 15) % 360; // Warna berubah setiap skor naik
-                return `hsl(${hue}, 70%, 50%)`;
+            // --- PALETTE ---
+            const colors = ['#264653', '#2a9d8f', '#e9c46a', '#f4a261', '#e76f51', '#d62828', '#f77f00'];
+
+            function getRandomColor(index) {
+                return colors[index % colors.length];
             }
 
             // --- LOGIC ---
 
             function initGame() {
                 blocks = [];
+                fallingPieces = [];
                 score = 0;
                 cameraY = 0;
-                speed = 3;
-                fallingPiece = null;
-
-                // Base Block (Platform awal)
-                const baseBlock = {
-                    x: canvas.width / 2 - 100,
-                    y: canvas.height - 50,
-                    width: 200,
-                    color: '#fff'
-                };
-                blocks.push(baseBlock);
-
-                // Block Pertama
-                spawnBlock();
+                targetCameraY = 0;
+                speed = baseSpeed;
+                canPlace = true;
                 
-                $('#scoreVal').text(0);
+                // Base Block
+                const baseY = H - 150; 
+                const baseX = W / 2 - INITIAL_WIDTH / 2;
+                
+                blocks.push({
+                    x: baseX,
+                    y: baseY,
+                    width: INITIAL_WIDTH,
+                    color: '#f0f0f0',
+                    hasShadow: false
+                });
+
+                spawnNewBlock();
+                $('#scoreDisplay').text(0);
             }
 
-            function spawnBlock() {
+            function spawnNewBlock() {
                 const lastBlock = blocks[blocks.length - 1];
+                const newY = lastBlock.y - BLOCK_HEIGHT;
                 
-                // Block baru muncul dari luar layar (kiri atau kanan)
-                const direction = Math.random() > 0.5 ? 1 : -1;
-                const startX = direction === 1 ? -lastBlock.width : canvas.width;
-
+                // PERBAIKAN 1: Spawn blok di tepi kiri layar (x=0), bukan di luar layar.
+                // Ini memastikan pemain melihat blok sejak awal.
+                // Blok akan bergerak ke kanan.
+                
                 currentBlock = {
-                    x: startX,
-                    y: lastBlock.y - BLOCK_HEIGHT, // Di atas block sebelumnya
+                    x: 0, 
+                    y: newY,
                     width: lastBlock.width,
-                    color: getColor(score),
-                    direction: direction,
-                    speed: speed
+                    color: getRandomColor(score),
+                    direction: 1,
+                    hasShadow: true
                 };
-
-                // Naikkan kecepatan
-                if (score > 0 && score % 5 === 0) {
-                    speed += 0.5;
-                }
             }
 
             function placeBlock() {
-                if (!currentBlock) return;
+                if (!currentBlock || !canPlace) return;
 
                 const lastBlock = blocks[blocks.length - 1];
                 
-                // Kalkulasi overlap
+                // 1. Hitung Overlap
                 const overlapStart = Math.max(currentBlock.x, lastBlock.x);
                 const overlapEnd = Math.min(currentBlock.x + currentBlock.width, lastBlock.x + lastBlock.width);
                 const overlapWidth = overlapEnd - overlapStart;
 
+                // 2. Cek Miss Total
                 if (overlapWidth <= 0) {
-                    // GAGAL TOTAL (tidak ada yang numpuk)
+                    // Miss! Tidak ada yang numpuk.
+                    // Pastikan kita membuat falling piece agar pemain tahu salahnya di mana.
                     createFallingPiece(currentBlock.x, currentBlock.y, currentBlock.width, currentBlock.color);
+                    currentBlock = null;
                     gameOver();
                     return;
                 }
 
-                // BAGIAN YANG JATUH
-                // Jika tidak pas, potong sisanya
+                // 3. Success
+                canPlace = false; // Prevent spamming clicks
+                
+                // 3a. Potong bagian yang jatuh
                 if (overlapWidth < currentBlock.width) {
                     let cutX, cutWidth;
+                    const isLeftoverLeft = currentBlock.x < lastBlock.x;
                     
-                    // Tentukan sisa yang jatuh (kiri atau kanan)
-                    if (currentBlock.x < lastBlock.x) {
-                        // Sisa kiri jatuh
+                    if (isLeftoverLeft) {
                         cutX = currentBlock.x;
                         cutWidth = lastBlock.x - currentBlock.x;
                     } else {
-                        // Sisa kanan jatuh
                         cutX = overlapEnd;
                         cutWidth = (currentBlock.x + currentBlock.width) - overlapEnd;
                     }
-                    
                     createFallingPiece(cutX, currentBlock.y, cutWidth, currentBlock.color);
                 }
 
-                // BAGIAN YANG NAMPAK
+                // 3b. Buat blok baru yang pas
                 const newBlock = {
                     x: overlapStart,
                     y: currentBlock.y,
                     width: overlapWidth,
-                    color: currentBlock.color
+                    color: currentBlock.color,
+                    hasShadow: true
                 };
+                
                 blocks.push(newBlock);
-
                 score++;
-                $('#scoreVal').text(score);
+                $('#scoreDisplay').text(score);
 
-                // Kamera mengikuti ke atas
-                // Jika tumpukan mendekati setengah layar, geser kamera
-                const threshold = canvas.height / 2;
-                if (newBlock.y < threshold + cameraY) {
-                    // Target kamera adalah posisi Y block diset ke tengah
-                    // Kita smooth kan nanti di draw
-                    cameraY = newBlock.y - threshold;
-                }
+                if (score % 5 === 0) speed += 0.25;
+
+                targetCameraY = newBlock.y - (H / 2);
 
                 currentBlock = null;
                 
-                // Spawn berikutnya
-                spawnBlock();
+                // Delay sedikit sebelum spawn baru untuk memastikan animasi jalan
+                setTimeout(() => {
+                    spawnNewBlock();
+                    canPlace = true;
+                }, 100);
             }
 
             function createFallingPiece(x, y, w, color) {
-                fallingPiece = {
+                if (w <= 0) return;
+                fallingPieces.push({
                     x: x,
                     y: y,
                     width: w,
                     height: BLOCK_HEIGHT,
                     color: color,
                     velY: 0,
-                    velX: (Math.random() - 0.5) * 2, // Sedikit melayang
+                    velX: (Math.random() - 0.5) * 4,
                     rotation: 0,
-                    rotationSpeed: (Math.random() - 0.5) * 0.2
-                };
+                    rotSpeed: (Math.random() - 0.5) * 0.3
+                });
             }
 
             function update() {
                 if (state !== 'PLAYING') return;
 
-                // Gerakkan current block
                 if (currentBlock) {
-                    currentBlock.x += currentBlock.speed * currentBlock.direction;
+                    currentBlock.x += speed * currentBlock.direction;
 
-                    // Pantulkan jika menyentuh pinggir (biar gampang, atau bisa buat game over)
-                    // Di game stacker klasik, bolak balik.
-                    // Logika bolak balik:
-                    const rightBound = canvas.width;
-                    if (currentBlock.x + currentBlock.width > rightBound) {
-                        currentBlock.x = rightBound - currentBlock.width;
-                        currentBlock.direction *= -1;
-                    }
-                    if (currentBlock.x < 0) {
+                    // Logika Pantul: Pindah ke kiri/kanan saat menyentuh pinggir
+                    // Karena spawn di x=0, kita handle pantulan kanan dulu
+                    
+                    // Jika menyentuh kanan
+                    if (currentBlock.x + currentBlock.width > W) {
+                        currentBlock.x = W - currentBlock.width;
+                        currentBlock.direction = -1; // Balik kiri
+                    } 
+                    // Jika menyentuh kiri
+                    else if (currentBlock.x < 0) {
                         currentBlock.x = 0;
-                        currentBlock.direction *= -1;
+                        currentBlock.direction = 1; // Balik kanan
                     }
                 }
 
-                // Update falling piece
-                if (fallingPiece) {
-                    fallingPiece.velY += 0.8; // Gravitasi
-                    fallingPiece.y += fallingPiece.velY;
-                    fallingPiece.x += fallingPiece.velX;
-                    fallingPiece.rotation += fallingPiece.rotationSpeed;
+                // Fisika Jatuh
+                for (let i = fallingPieces.length - 1; i >= 0; i--) {
+                    let p = fallingPieces[i];
+                    p.velY += 0.6;
+                    p.y += p.velY;
+                    p.x += p.velX;
+                    p.rotation += p.rotSpeed;
 
-                    // Hapus jika sudah jatuh ke bawah
-                    if (fallingPiece.y > canvas.height + 100) {
-                        fallingPiece = null;
+                    if (p.y > H + 200) { // Hapus jika sudah jauh di bawah
+                        fallingPieces.splice(i, 1);
                     }
+                }
+
+                // Kamera
+                if (cameraY < targetCameraY) {
+                    cameraY += (targetCameraY - cameraY) * 0.1;
                 }
             }
 
             function draw() {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                
+                ctx.fillStyle = "#ebf2fa";
+                ctx.fillRect(0, 0, W, H);
+
                 ctx.save();
-                // Terapkan kamera (geser semua ke bawah, effenya scroll up)
                 ctx.translate(0, -cameraY);
 
                 // Draw Stacked Blocks
                 for (let b of blocks) {
-                    ctx.fillStyle = b.color;
-                    ctx.fillRect(b.x, b.y, b.width, BLOCK_HEIGHT);
-                    
-                    // Efek 3D samping
-                    ctx.fillStyle = "rgba(0,0,0,0.1)";
-                    ctx.fillRect(b.x, b.y, b.width, 5); // shadow top
+                    drawBlock(b.x, b.y, b.width, BLOCK_HEIGHT, b.color, b.hasShadow);
                 }
 
-                // Draw Current Moving Block
+                // Draw Moving Block
                 if (currentBlock) {
-                    ctx.fillStyle = currentBlock.color;
-                    ctx.fillRect(currentBlock.x, currentBlock.y, currentBlock.width, BLOCK_HEIGHT);
+                    drawBlock(currentBlock.x, currentBlock.y, currentBlock.width, BLOCK_HEIGHT, currentBlock.color, true);
                 }
 
-                // Draw Falling Piece
-                if (fallingPiece) {
+                // Draw Falling Pieces
+                for (let p of fallingPieces) {
                     ctx.save();
-                    ctx.translate(fallingPiece.x + fallingPiece.width/2, fallingPiece.y + fallingPiece.height/2);
-                    ctx.rotate(fallingPiece.rotation);
-                    ctx.fillStyle = fallingPiece.color;
-                    ctx.fillRect(-fallingPiece.width/2, -fallingPiece.height/2, fallingPiece.width, fallingPiece.height);
+                    ctx.translate(p.x + p.width/2, p.y + p.height/2);
+                    ctx.rotate(p.rotation);
+                    ctx.fillStyle = p.color;
+                    // Shadow for falling piece
+                    ctx.fillStyle = "rgba(0,0,0,0.2)";
+                    ctx.fillRect(-p.width/2 + 5, -p.height/2 + 5, p.width, p.height);
+                    // Main
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(-p.width/2, -p.height/2, p.width, p.height);
                     ctx.restore();
                 }
 
                 ctx.restore();
+            }
+
+            function drawBlock(x, y, w, h, color, shadow) {
+                if (shadow) {
+                    ctx.fillStyle = "rgba(0,0,0,0.1)";
+                    ctx.fillRect(x + 3, y + 3, w, h);
+                }
+                ctx.fillStyle = color;
+                ctx.fillRect(x, y, w, h);
+                // Highlight
+                ctx.fillStyle = "rgba(255,255,255,0.2)";
+                ctx.fillRect(x, y, w, 3);
             }
 
             function loop() {
@@ -356,28 +398,40 @@
             }
 
             // --- EVENTS ---
-            function handleInput() {
+            
+            // PERBAIKAN UTAMA: Memisahkan event Start dan Game Click
+            // agar klik tombol start tidak langsung memicu 'placeBlock'
+
+            function handleGameClick(e) {
+                // Jika event berasal dari tombol UI, abaikan
+                if ($(e.target).is('button')) return;
+                
+                e.preventDefault(); // Prevent scroll/zoom
                 if (state === 'PLAYING') {
                     placeBlock();
                 }
             }
 
-            $('#gameContainer').on('click touchstart', function(e) {
-                if (state === 'MENU') return;
-                e.preventDefault();
-                handleInput();
-            });
+            $('#gameContainer').on('mousedown touchstart', handleGameClick);
 
             $(document).on('keydown', function(e) {
                 if (e.code === 'Space') {
-                    if (state === 'MENU') return;
-                    e.preventDefault();
-                    handleInput();
+                    if (state === 'PLAYING') {
+                        e.preventDefault();
+                        placeBlock();
+                    }
                 }
             });
 
-            $('#startBtn').click(startGame);
-            $('#restartBtn').click(startGame);
+            $('#startBtn').click(function(e) {
+                e.stopPropagation(); // Penting: hentikan event agar tidak ke container
+                startGame();
+            });
+
+            $('#restartBtn').click(function(e) {
+                e.stopPropagation();
+                startGame();
+            });
 
             function startGame() {
                 state = 'PLAYING';
@@ -394,16 +448,15 @@
                 setTimeout(() => {
                     if (score > highScore) {
                         highScore = score;
-                        localStorage.setItem('neonStackHigh', highScore);
+                        localStorage.setItem('paperStackHigh', highScore);
                     }
                     $('#finalScore').text(score);
                     $('#highScore').text(highScore);
                     $('#gameOverScreen').removeClass('hidden');
                     $('#hud').addClass('hidden');
-                }, 500); // Delay sedikit biar liat potongan jatuh
+                }, 500);
             }
 
-            // Start loop
             loop();
         });
     </script>
