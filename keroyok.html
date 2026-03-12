@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Void Survivor</title>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #050505;
+            --player-color: #00ffcc;
+            --enemy-color: #ff3333;
+            --bullet-color: #ffff00;
+            --ui-bg: rgba(0, 0, 0, 0.6);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            font-family: 'Segoe UI', sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            touch-action: none;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            max-width: 800px; /* Limit on desktop */
+            background-color: #111;
+            border: 2px solid #333;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* UI Overlay */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            color: white;
+            text-align: center;
+            transition: opacity 0.5s;
+        }
+
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin: 0;
+            color: var(--player-color);
+            text-shadow: 0 0 20px var(--player-color);
+            font-family: 'Arial Black', sans-serif;
+            letter-spacing: 2px;
+        }
+
+        .subtitle {
+            color: #888;
+            margin-bottom: 2rem;
+        }
+
+        button {
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            background: var(--player-color);
+            color: #000;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            text-transform: uppercase;
+            transition: transform 0.1s;
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        /* HUD Styles */
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        .stat-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            background: rgba(0,0,0,0.5);
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
+
+        .stat-label {
+            color: #aaa;
+            font-size: 0.9rem;
+            width: 50px;
+        }
+
+        .bar-container {
+            width: 150px;
+            height: 12px;
+            background: #333;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        #healthBar {
+            width: 100%;
+            height: 100%;
+            background: #ff3333;
+            transition: width 0.2s;
+        }
+
+        #scoreText {
+            color: white;
+            font-weight: bold;
+            font-size: 1.2rem;
+            margin-top: 10px;
+        }
+
+        /* Mobile Joystick Area (Visual Only) */
+        #joystickArea {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            z-index: 5;
+            pointer-events: none;
+            display: none; /* Shown on touch devices */
+        }
+        #joystickKnob {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="hud" class="hidden">
+            <div class="stat-row">
+                <span class="stat-label">HP</span>
+                <div class="bar-container">
+                    <div id="healthBar"></div>
+                </div>
+            </div>
+            <div id="scoreText">SKOR: 0</div>
+        </div>
+
+        <div id="joystickArea">
+            <div id="joystickKnob"></div>
+        </div>
+
+        <!-- Start Screen -->
+        <div id="startScreen" class="overlay">
+            <h1>VOID SURVIVOR</h1>
+            <p class="subtitle">Bertahan hidup selama mungkin!</p>
+            <div style="color: #ccc; margin-bottom: 20px; line-height: 1.6;">
+                <p>Gunakan <b>WASD</b> atau <b>Tombol Arah</b> untuk bergerak.</p>
+                <p>Senjata menembak otomatis.</p>
+                <p style="font-size: 0.9rem; color: #888;">(Sentuh & geser di HP untuk bergerak)</p>
+            </div>
+            <button id="startBtn">MULAI</button>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="gameOverScreen" class="overlay hidden">
+            <h1 style="color: var(--enemy-color);">GAME OVER</h1>
+            <p>Waktu Bertahan: <span id="timeSurvived">00:00</span></p>
+            <p>Musuh Dikalahkan: <span id="killCount">0</span></p>
+            <button id="restartBtn">Main Lagi</button>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            // --- SETUP CANVAS ---
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Set logical size internal
+            const W = 800;
+            const H = 600;
+            canvas.width = W;
+            canvas.height = H;
+
+            // --- GAME STATE ---
+            let state = 'MENU';
+            let gameTime = 0;
+            let score = 0;
+            let kills = 0;
+            let frameCount = 0;
+
+            // --- CONFIGURATION ---
+            const ENEMY_SPAWN_RATE_BASE = 60; // Frames between spawns
+            const PLAYER_SPEED = 4;
+            const BULLET_SPEED = 8;
+            
+            // --- OBJECTS ---
+            const player = {
+                x: W / 2,
+                y: H / 2,
+                size: 15,
+                speed: PLAYER_SPEED,
+                hp: 100,
+                maxHp: 100,
+                color: '#00ffcc',
+                lastShot: 0,
+                fireRate: 15, // Frames between shots
+                damage: 20
+            };
+
+            let enemies = [];
+            let bullets = [];
+            let particles = [];
+
+            // Input State
+            const keys = { w: false, a: false, s: false, d: false };
+            let touchPos = null; // {x, y} relative to canvas
+
+            // --- INPUT HANDLERS ---
+            
+            // Keyboard
+            $(document).on('keydown', (e) => {
+                const k = e.key.toLowerCase();
+                if (k === 'w' || k === 'arrowup') keys.w = true;
+                if (k === 's' || k === 'arrowdown') keys.s = true;
+                if (k === 'a' || k === 'arrowleft') keys.a = true;
+                if (k === 'd' || k === 'arrowright') keys.d = true;
+            });
+            $(document).on('keyup', (e) => {
+                const k = e.key.toLowerCase();
+                if (k === 'w' || k === 'arrowup') keys.w = false;
+                if (k === 's' || k === 'arrowdown') keys.s = false;
+                if (k === 'a' || k === 'arrowleft') keys.a = false;
+                if (k === 'd' || k === 'arrowright') keys.d = false;
+            });
+
+            // Touch (Joystick simulation)
+            const $joystick = $('#joystickArea');
+            const $knob = $('#joystickKnob');
+            
+            // Helper to get coords
+            function getCanvasCoords(e) {
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = W / rect.width;
+                const scaleY = H / rect.height;
+                const touch = e.originalEvent.touches[0] || e.originalEvent.changedTouches[0];
+                return {
+                    x: (touch.clientX - rect.left) * scaleX,
+                    y: (touch.clientY - rect.top) * scaleY
+                };
+            }
+
+            $('#gameContainer').on('touchstart', function(e) {
+                e.preventDefault();
+                // Check if touch is on the left side (movement)
+                // For simplicity, we use whole screen, but visualize joystick on bottom left
+                touchPos = getCanvasCoords(e);
+                
+                if (state === 'PLAYING') $joystick.show();
+            });
+
+            $('#gameContainer').on('touchmove', function(e) {
+                e.preventDefault();
+                if (touchPos) {
+                    touchPos = getCanvasCoords(e);
+                    
+                    // Update Visual Joystick
+                    // Logic: Map touchPos to joystick center
+                    // For simple implementation, just map distance to keys
+                    const rect = canvas.getBoundingClientRect();
+                    const joyCenterX = 60; // visual center approx
+                    const joyCenterY = H - 60;
+                    
+                    // Simple mapping: if finger is left of center -> move left
+                    // This is abstracted in the update loop now using angle
+                }
+            });
+
+            $('#gameContainer').on('touchend', function(e) {
+                touchPos = null;
+                keys.w = false; keys.a = false; keys.s = false; keys.d = false;
+                $joystick.hide();
+            });
+
+
+            // --- GAME LOGIC ---
+
+            function spawnEnemy() {
+                // Spawn at edge
+                let x, y;
+                const side = Math.floor(Math.random() * 4); // 0:Top, 1:Right, 2:Bottom, 3:Left
+                
+                if (side === 0) { x = Math.random() * W; y = -20; }
+                else if (side === 1) { x = W + 20; y = Math.random() * H; }
+                else if (side === 2) { x = Math.random() * W; y = H + 20; }
+                else { x = -20; y = Math.random() * H; }
+
+                // Difficulty scaling: enemies get faster over time
+                const speedBonus = 1 + (gameTime / 60); // +1 speed every minute
+
+                enemies.push({
+                    x: x,
+                    y: y,
+                    size: 12,
+                    speed: 1.5 + (Math.random() * 0.5) + (speedBonus * 0.2),
+                    hp: 40,
+                    color: '#ff3333'
+                });
+            }
+
+            function update() {
+                if (state !== 'PLAYING') return;
+
+                frameCount++;
+                if (frameCount % 60 === 0) {
+                    gameTime++;
+                    $('#scoreText').text(`WAKTU: ${formatTime(gameTime)}`);
+                }
+
+                // --- PLAYER MOVEMENT ---
+                let dx = 0, dy = 0;
+                
+                // Keyboard Input
+                if (keys.w) dy -= 1;
+                if (keys.s) dy += 1;
+                if (keys.a) dx -= 1;
+                if (keys.d) dx += 1;
+
+                // Touch Input (Virtual Joystick Logic)
+                if (touchPos) {
+                    // Calculate angle from bottom-left corner (where joystick usually is)
+                    // Or better: Relative to player? No, usually relative to a fixed point.
+                    // Let's simulate a dynamic joystick: Center of touch start is tricky without state.
+                    // SIMPLIFIED TOUCH: Move towards finger position relative to player?
+                    // No, usually arcade touch: Move in direction of finger relative to screen center or joystick area.
+                    
+                    // Let's assume Joystick Area is bottom-left (0 to 200x, H-200 to H).
+                    // User can touch anywhere to move, but we visualize joystick.
+                    // Actually, easiest for mobile: Move towards touch.
+                    // Let's do: Touch anywhere acts as "move towards this point".
+                    
+                    // To not conflict with keyboard bools, let's just override dx/dy if touch exists
+                    const targetDx = touchPos.x - player.x;
+                    const targetDy = touchPos.y - player.y;
+                    const dist = Math.sqrt(targetDx*targetDx + targetDy*targetDy);
+                    
+                    if (dist > 10) { // Dead zone
+                        dx = targetDx / dist; // Normalize
+                        dy = targetDy / dist;
+                    }
+                    
+                    // Visual knob update
+                    // (Skipping complex visual update for brevity, just centering knob)
+                    $knob.css('transform', `translate(calc(-50% + ${dx*20}px), calc(-50% + ${dy*20}px))`);
+                }
+
+                // Normalize diagonal speed
+                if (dx !== 0 && dy !== 0) {
+                    const len = Math.sqrt(dx*dx + dy*dy);
+                    dx /= len;
+                    dy /= len;
+                }
+
+                player.x += dx * player.speed;
+                player.y += dy * player.speed;
+
+                // Boundary Constraints
+                player.x = Math.max(player.size, Math.min(W - player.size, player.x));
+                player.y = Math.max(player.size, Math.min(H - player.size, player.y));
+
+                // --- AUTO SHOOT ---
+                // Find nearest enemy
+                let nearestEnemy = null;
+                let minDist = Infinity;
+                
+                for (let e of enemies) {
+                    const dist = Math.hypot(e.x - player.x, e.y - player.y);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        nearestEnemy = e;
+                    }
+                }
+
+                // Shoot logic
+                if (frameCount - player.lastShot > player.fireRate) {
+                    if (nearestEnemy && minDist < 500) { // Range limit
+                        const angle = Math.atan2(nearestEnemy.y - player.y, nearestEnemy.x - player.x);
+                        bullets.push({
+                            x: player.x,
+                            y: player.y,
+                            vx: Math.cos(angle) * BULLET_SPEED,
+                            vy: Math.sin(angle) * BULLET_SPEED,
+                            size: 4
+                        });
+                        player.lastShot = frameCount;
+                    }
+                }
+
+                // --- UPDATE BULLETS ---
+                for (let i = bullets.length - 1; i >= 0; i--) {
+                    const b = bullets[i];
+                    b.x += b.vx;
+                    b.y += b.vy;
+
+                    // Remove if off screen
+                    if (b.x < 0 || b.x > W || b.y < 0 || b.y > H) {
+                        bullets.splice(i, 1);
+                        continue;
+                    }
+
+                    // Collision with enemies
+                    for (let j = enemies.length - 1; j >= 0; j--) {
+                        const e = enemies[j];
+                        const dist = Math.hypot(b.x - e.x, b.y - e.y);
+                        if (dist < e.size + b.size) {
+                            e.hp -= player.damage;
+                            createParticles(e.x, e.y, '#ffff00', 3);
+                            bullets.splice(i, 1);
+                            
+                            if (e.hp <= 0) {
+                                createParticles(e.x, e.y, '#ff3333', 10);
+                                enemies.splice(j, 1);
+                                kills++;
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                // --- UPDATE ENEMIES ---
+                const spawnRate = Math.max(10, ENEMY_SPAWN_RATE_BASE - (gameTime * 2));
+                if (frameCount % spawnRate === 0) {
+                    spawnEnemy();
+                }
+
+                for (let i = enemies.length - 1; i >= 0; i--) {
+                    const e = enemies[i];
+                    
+                    // Move towards player
+                    const angle = Math.atan2(player.y - e.y, player.x - e.x);
+                    e.x += Math.cos(angle) * e.speed;
+                    e.y += Math.sin(angle) * e.speed;
+
+                    // Collision with Player
+                    const dist = Math.hypot(player.x - e.x, player.y - e.y);
+                    if (dist < player.size + e.size) {
+                        player.hp -= 10;
+                        updateHealthBar();
+                        
+                        // Knockback enemy slightly
+                        e.x -= Math.cos(angle) * 20;
+                        e.y -= Math.sin(angle) * 20;
+                        
+                        createParticles(player.x, player.y, '#ff3333', 5);
+
+                        if (player.hp <= 0) {
+                            gameOver();
+                        }
+                    }
+                }
+
+                // --- UPDATE PARTICLES ---
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    const p = particles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.life--;
+                    if (p.life <= 0) particles.splice(i, 1);
+                }
+            }
+
+            // --- DRAWING ---
+            function draw() {
+                // Clear
+                ctx.fillStyle = '#0a0a0a';
+                ctx.fillRect(0, 0, W, H);
+
+                // Draw Grid (Floor effect)
+                ctx.strokeStyle = '#222';
+                ctx.lineWidth = 1;
+                const gridSize = 50;
+                // Offset grid based on player pos for parallax feel? No, static arena
+                for (let x = 0; x <= W; x += gridSize) {
+                    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+                }
+                for (let y = 0; y <= H; y += gridSize) {
+                    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+                }
+
+                // Draw Particles
+                for (let p of particles) {
+                    ctx.globalAlpha = p.life / 20;
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
+                }
+                ctx.globalAlpha = 1.0;
+
+                // Draw Bullets
+                ctx.fillStyle = '#ffff00';
+                for (let b of bullets) {
+                    ctx.beginPath();
+                    ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Trail
+                    ctx.strokeStyle = 'rgba(255, 255, 0, 0.3)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(b.x, b.y);
+                    ctx.lineTo(b.x - b.vx*3, b.y - b.vy*3);
+                    ctx.stroke();
+                }
+
+                // Draw Enemies
+                for (let e of enemies) {
+                    ctx.fillStyle = e.color;
+                    // Draw triangle pointing at player
+                    const angle = Math.atan2(player.y - e.y, player.x - e.x);
+                    
+                    ctx.save();
+                    ctx.translate(e.x, e.y);
+                    ctx.rotate(angle);
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(e.size, 0);
+                    ctx.lineTo(-e.size, -e.size);
+                    ctx.lineTo(-e.size, e.size);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.restore();
+                }
+
+                // Draw Player
+                ctx.fillStyle = player.color;
+                ctx.beginPath();
+                ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Player Gun Visual (inner circle)
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(player.x, player.y, player.size/2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            function createParticles(x, y, color, count) {
+                for (let i = 0; i < count; i++) {
+                    particles.push({
+                        x: x,
+                        y: y,
+                        vx: (Math.random() - 0.5) * 4,
+                        vy: (Math.random() - 0.5) * 4,
+                        size: 3,
+                        color: color,
+                        life: 20
+                    });
+                }
+            }
+
+            function updateHealthBar() {
+                const percent = (player.hp / player.maxHp) * 100;
+                $('#healthBar').css('width', percent + '%');
+            }
+
+            function formatTime(sec) {
+                const m = Math.floor(sec / 60);
+                const s = sec % 60;
+                return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            }
+
+            // --- LOOP ---
+            function loop() {
+                update();
+                draw();
+                requestAnimationFrame(loop);
+            }
+
+            // --- STATE MGMT ---
+            function startGame() {
+                state = 'PLAYING';
+                frameCount = 0;
+                gameTime = 0;
+                kills = 0;
+                player.hp = player.maxHp;
+                player.x = W/2;
+                player.y = H/2;
+                enemies = [];
+                bullets = [];
+                particles = [];
+                
+                updateHealthBar();
+                $('#scoreText').text('WAKTU: 00:00');
+                $('#startScreen').addClass('hidden');
+                $('#gameOverScreen').addClass('hidden');
+                $('#hud').removeClass('hidden');
+                
+                if('ontouchstart' in window) $('#joystickArea').show();
+            }
+
+            function gameOver() {
+                state = 'GAMEOVER';
+                $('#timeSurvived').text(formatTime(gameTime));
+                $('#killCount').text(kills);
+                $('#gameOverScreen').removeClass('hidden');
+                $('#hud').addClass('hidden');
+                $('#joystickArea').hide();
+            }
+
+            // --- INIT ---
+            $('#startBtn').click(startGame);
+            $('#restartBtn').click(startGame);
+            loop();
+        });
+    </script>
+</body>
+</html>
