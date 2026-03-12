@@ -3,20 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sky Stacker - Best Version</title>
+    <title>Dart Master</title>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <style>
         :root {
-            --bg-color: #1b1b2f;
-            --text-main: #eee;
-            --accent: #e43f5a;
+            --bg-color: #222;
+            --wood-color: #8d5524;
+            --wood-dark: #5c3d2e;
+            --dart-color: #e0e0e0;
+            --accent: #ff4757;
+            --text-main: #fff;
         }
 
         body {
             margin: 0;
             padding: 0;
-            background-color: #0f0f1a;
-            font-family: 'Segoe UI', sans-serif;
+            background-color: #111;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             overflow: hidden;
             display: flex;
             justify-content: center;
@@ -29,24 +32,26 @@
         #gameContainer {
             position: relative;
             width: 100%;
-            max-width: 420px;
+            max-width: 400px;
             height: 100%;
-            max-height: 750px;
-            background-color: var(--bg-color);
+            max-height: 700px;
+            background: radial-gradient(circle at center, #2a2a2a, #111);
             overflow: hidden;
-            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
 
         canvas {
             display: block;
         }
 
-        /* --- UI STYLING --- */
+        /* UI */
         .overlay {
             position: absolute;
             top: 0; left: 0;
             width: 100%; height: 100%;
-            background: rgba(27, 27, 47, 0.95);
+            background: rgba(0, 0, 0, 0.9);
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -54,75 +59,67 @@
             z-index: 10;
             color: white;
             text-align: center;
-            backdrop-filter: blur(5px);
-            transition: opacity 0.5s ease, transform 0.5s ease;
+            transition: opacity 0.3s;
         }
 
-        .hidden {
-            opacity: 0;
-            pointer-events: none;
-            transform: scale(1.1);
-        }
+        .hidden { opacity: 0; pointer-events: none; }
 
         h1 {
-            font-size: 3.5rem;
+            font-size: 3rem;
             margin: 0;
             font-weight: 900;
-            background: linear-gradient(45deg, #e43f5a, #4c7ffd);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            text-transform: uppercase;
-            letter-spacing: 2px;
+            color: #fff;
+            text-shadow: 0 0 20px rgba(255, 71, 87, 0.5);
         }
-
-        h2 { font-size: 1rem; color: #aaa; font-weight: 300; margin-top: 10px; letter-spacing: 5px; }
-        p { color: #888; margin: 20px 0 40px; font-size: 0.9rem; }
+        p { color: #aaa; margin: 10px 0 30px; }
 
         button {
             padding: 15px 50px;
             font-size: 1.2rem;
-            background: linear-gradient(90deg, #e43f5a, #ff6b6b);
+            background: var(--accent);
             color: white;
             border: none;
-            border-radius: 30px;
+            border-radius: 5px;
             cursor: pointer;
             font-weight: bold;
-            box-shadow: 0 10px 20px rgba(228, 63, 90, 0.3);
-            transition: transform 0.1s, box-shadow 0.2s;
+            box-shadow: 0 5px 0 #c0392b;
+            transition: transform 0.1s;
         }
-        button:active { transform: scale(0.95); box-shadow: 0 5px 10px rgba(228, 63, 90, 0.3); }
+        button:active { transform: translateY(5px); box-shadow: 0 0 0 #c0392b; }
 
         /* HUD */
         #hud {
             position: absolute;
-            top: 40px;
-            left: 0;
+            top: 30px;
             width: 100%;
-            text-align: center;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-sizing: border-box;
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
             z-index: 5;
             pointer-events: none;
         }
         
-        #scoreVal {
-            font-size: 5rem;
-            font-weight: 900;
-            color: rgba(255, 255, 255, 0.1);
-            display: block;
-            transition: color 0.2s;
-        }
-        
-        #bonusText {
+        #dartIndicator {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 2rem;
-            font-weight: bold;
-            color: #4c7ffd;
-            opacity: 0;
+            bottom: 50px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+            z-index: 5;
             pointer-events: none;
-            text-shadow: 0 0 10px rgba(76, 127, 253, 0.5);
         }
+        .dart-icon {
+            width: 8px;
+            height: 25px;
+            background: #555;
+            clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+        }
+        .dart-icon.active { background: var(--dart-color); }
     </style>
 </head>
 <body>
@@ -131,309 +128,275 @@
         <canvas id="gameCanvas"></canvas>
         
         <div id="hud" class="hidden">
-            <span id="scoreVal">0</span>
+            <div>LEVEL <span id="levelDisplay">1</span></div>
+            <div>SKOR <span id="scoreDisplay">0</span></div>
         </div>
-        <div id="bonusText">PERFECT!</div>
+
+        <div id="dartIndicator"></div>
 
         <div id="startScreen" class="overlay">
-            <h2>ENDLESS ARCADE</h2>
-            <h1>Stacker</h1>
-            <p>Tumpuk setinggi mungkin.<br>Tumpukan akan menurun otomatis.</p>
-            <button id="startBtn">START</button>
+            <h1>DART MASTER</h1>
+            <p>Lemparkan dart ke papan tanpa mengenai dart lain!</p>
+            <button id="startBtn">MAIN</button>
         </div>
 
         <div id="gameOverScreen" class="overlay hidden">
-            <h2>GAME OVER</h2>
-            <h1 style="font-size: 2rem; margin-bottom: 20px;">SKOR: <span id="finalScore">0</span></h1>
-            <p>Best Score: <span id="highScore">0</span></p>
-            <button id="restartBtn">RETRY</button>
+            <h1 style="color: var(--accent);">GAGAL!</h1>
+            <p>Level Tercapai: <span id="finalLevel">1</span></p>
+            <p>Skor Akhir: <span id="finalScore">0</span></p>
+            <button id="restartBtn">COBA LAGI</button>
         </div>
     </div>
 
     <script>
         $(document).ready(function() {
-            // --- SETUP ---
+            // --- SETUP CANVAS ---
             const canvas = document.getElementById('gameCanvas');
             const ctx = canvas.getContext('2d');
             
-            let W, H;
+            // Sizing
+            let W, H, centerX, centerY;
             function resizeCanvas() {
                 W = $('#gameContainer').width();
                 H = $('#gameContainer').height();
                 canvas.width = W;
                 canvas.height = H;
+                centerX = W / 2;
+                centerY = H / 2 - 50; // Sedikit di atas tengah
             }
             resizeCanvas();
             $(window).on('resize', resizeCanvas);
 
-            // --- STATE ---
+            // --- GAME STATE ---
             let state = 'MENU';
+            let level = 1;
             let score = 0;
-            let highScore = localStorage.getItem('skyStackerHigh') || 0;
             
-            // --- CONFIG ---
-            const BLOCK_HEIGHT = 40;
-            let blocks = [];
-            let currentBlock = null;
-            let fallingPieces = [];
-            let particles = [];
-            
-            // Camera System
-            let cameraY = 0; 
-            let targetCameraY = 0;
-            
-            // Colors
-            let hue = 200; // Start Blue
+            // --- OBJECTS ---
+            const wheel = {
+                radius: 80,
+                angle: 0,
+                speed: 0.02,
+                direction: 1
+            };
 
+            let stuckDarts = []; // Dart yang sudah nancep di wheel
+            let flyingDart = null; // Dart yang sedang terbang
+            
+            // Player stats for level
+            let dartsToThrow = 5; // Jumlah dart per level
+            let dartsThrown = 0;
+            
             // --- LOGIC ---
 
-            function initGame() {
-                blocks = [];
-                fallingPieces = [];
-                particles = [];
-                score = 0;
-                hue = 200;
-                cameraY = 0;
-                targetCameraY = 0;
+            function initLevel() {
+                stuckDarts = [];
+                dartsThrown = 0;
+                dartsToThrow = Math.floor(4 + (level / 2)); // Tambah jumlah dart di level tinggi
+                wheel.speed = 0.02 + (level * 0.005); // Kecepatan bertambah
+                if (Math.random() > 0.5) wheel.direction *= -1; // Random arah
                 
-                // Base Block
-                const w = 180;
-                blocks.push({
-                    x: W/2 - w/2,
-                    y: H - 200,
-                    width: w,
-                    color: '#fff',
-                    outline: false
-                });
-
-                spawnNewBlock();
-                $('#scoreVal').text(0).css('color', 'rgba(255,255,255,0.1)');
+                updateDartIndicator();
             }
 
-            function spawnNewBlock() {
-                const lastBlock = blocks[blocks.length - 1];
+            function throwDart() {
+                if (flyingDart || state !== 'PLAYING') return;
                 
-                // Kamera target mengikuti blok terakhir
-                // Rumus: Kamera berada 30% dari atas blok terakhir
-                targetCameraY = lastBlock.y - (H * 0.3);
-
-                // New Block Position (Di atas last block)
-                const newY = lastBlock.y - BLOCK_HEIGHT;
-                
-                currentBlock = {
-                    x: -lastBlock.width, // Spawn kiri luar
-                    y: newY,
-                    width: lastBlock.width,
-                    color: `hsl(${hue}, 70%, 60%)`,
-                    direction: 1,
-                    speed: 3 + (score * 0.15), // Speed naik seiring skor
-                    outline: true
+                flyingDart = {
+                    x: centerX,
+                    y: H - 80,
+                    speed: 15
                 };
-            }
-
-            function placeBlock() {
-                if (!currentBlock) return;
-
-                const lastBlock = blocks[blocks.length - 1];
-                
-                // 1. Overlap Calculation
-                const overlapStart = Math.max(currentBlock.x, lastBlock.x);
-                const overlapEnd = Math.min(currentBlock.x + currentBlock.width, lastBlock.x + lastBlock.width);
-                const overlapWidth = overlapEnd - overlapStart;
-
-                // 2. Miss Total
-                if (overlapWidth <= 0) {
-                    createFallingPiece(currentBlock.x, currentBlock.y, currentBlock.width, currentBlock.color);
-                    currentBlock = null;
-                    gameOver();
-                    return;
-                }
-
-                // 3. Success Logic
-                // Check Perfect Drop (Toleransi 5 pixel)
-                const isPerfect = Math.abs(currentBlock.x - lastBlock.x) < 5;
-                
-                let finalX = overlapStart;
-                let finalWidth = overlapWidth;
-
-                if (isPerfect) {
-                    // Jika perfect, balok tidak di-potong, tapi mengikuti ukuran blok bawah
-                    finalX = lastBlock.x;
-                    finalWidth = lastBlock.width;
-                    showBonus("PERFECT!", "+20");
-                    score += 20; // Bonus instant
-                    createParticles(currentBlock.x + currentBlock.width/2, currentBlock.y, '#fff');
-                }
-
-                // Potong sisa (jika tidak perfect)
-                if (!isPerfect && overlapWidth < currentBlock.width) {
-                    const isLeft = currentBlock.x < lastBlock.x;
-                    const cutX = isLeft ? currentBlock.x : overlapEnd;
-                    const cutW = isLeft ? lastBlock.x - currentBlock.x : (currentBlock.x + currentBlock.width) - overlapEnd;
-                    
-                    createFallingPiece(cutX, currentBlock.y, cutW, currentBlock.color);
-                    createParticles(cutX + cutW/2, currentBlock.y, currentBlock.color);
-                }
-
-                // Add new stacked block
-                blocks.push({
-                    x: finalX,
-                    y: currentBlock.y,
-                    width: finalWidth,
-                    color: currentBlock.color,
-                    outline: false
-                });
-
-                score += 10;
-                $('#scoreVal').text(score);
-                
-                // Change Color
-                hue = (hue + 15) % 360;
-
-                currentBlock = null;
-                
-                // Clean up memory: Hapus blok yang sudah jauh di bawah kamera
-                // Logika: Jika Y blok > Y Kamera + Tinggi Layar, hapus.
-                // Ini membuat "Endless Conveyor" effect
-                for(let i=blocks.length-1; i>=0; i--) {
-                    if (blocks[i].y > cameraY + H + 100) {
-                        blocks.splice(i, 1);
-                    }
-                }
-
-                spawnNewBlock();
-            }
-
-            function createFallingPiece(x, y, w, color) {
-                if(w <= 0) return;
-                fallingPieces.push({
-                    x: x, y: y, width: w, height: BLOCK_HEIGHT,
-                    color: color, vy: 0, vx: (Math.random()-0.5)*4,
-                    rotation: 0, vr: (Math.random()-0.5)*0.2
-                });
-            }
-
-            function createParticles(x, y, color) {
-                for(let i=0; i<10; i++) {
-                    particles.push({
-                        x: x, y: y,
-                        vx: (Math.random()-0.5)*6,
-                        vy: (Math.random()-0.5)*6,
-                        size: Math.random()*4 + 2,
-                        life: 1.0,
-                        color: color
-                    });
-                }
-            }
-
-            function showBonus(text, scoreText) {
-                const $bonus = $('#bonusText');
-                $bonus.stop().css({opacity: 1, top: '50%', transform: 'translate(-50%, -50%) scale(1.5)'})
-                    .text(text)
-                    .animate({top: '40%', opacity: 0}, 500);
             }
 
             function update() {
                 if (state !== 'PLAYING') return;
 
-                // Camera Follow (Smooth)
-                cameraY += (targetCameraY - cameraY) * 0.1;
+                // 1. Rotate Wheel
+                wheel.angle += wheel.speed * wheel.direction;
 
-                // Move Current Block
-                if (currentBlock) {
-                    currentBlock.x += currentBlock.speed * currentBlock.direction;
-                    if (currentBlock.x + currentBlock.width > W || currentBlock.x < 0) {
-                        currentBlock.direction *= -1;
+                // 2. Move Flying Dart
+                if (flyingDart) {
+                    flyingDart.y -= flyingDart.speed;
+
+                    // Check Collision with Wheel
+                    const dist = Math.hypot(flyingDart.x - centerX, flyingDart.y - centerY);
+                    
+                    if (dist <= wheel.radius + 10) { // Hit wheel edge
+                        checkHit(flyingDart);
+                        flyingDart = null;
+                    } else if (flyingDart.y < -50) { // Missed completely (should not happen if logic right)
+                        flyingDart = null;
+                        gameOver();
+                    }
+                }
+            }
+
+            function checkHit(dart) {
+                // Hitung sudut relatif dart terhadap roda
+                // Kita perlu posisi global dart
+                const dx = dart.x - centerX;
+                const dy = dart.y - centerY;
+                const dist = Math.hypot(dx, dy);
+                
+                // Tentukan titik tabrakan di tepi roda
+                const hitX = dx;
+                const hitY = dy;
+
+                // Cek tabrakan dengan dart lain
+                // Logika: Hitung sudut absolut dart baru di sistem koordinat roda yang berputar
+                // Sudut dart di layar:
+                let dartAngle = Math.atan2(dy, dx);
+                
+                // Normalisasi sudut (0 to 2PI)
+                if (dartAngle < 0) dartAngle += 2 * Math.PI;
+
+                // Kita cek jarak sudut dengan dart lain yang sudah nancep
+                const collisionRadiusAngle = 0.2; // Toleransi sudut tabrakan (sekitar 11 derajat)
+                
+                for (let stuck of stuckDarts) {
+                    let diff = Math.abs(dartAngle - stuck.angle);
+                    if (diff > Math.PI) diff = 2 * Math.PI - diff; // Handle wrap around
+
+                    if (diff < collisionRadiusAngle) {
+                        // TABRAKAN!
+                        createSparks(dart.x, dart.y);
+                        gameOver();
+                        return;
                     }
                 }
 
-                // Physics for falling pieces
-                for (let i = fallingPieces.length - 1; i >= 0; i--) {
-                    let p = fallingPieces[i];
-                    p.vy += 0.5; // Gravity
-                    p.y += p.vy;
-                    p.x += p.vx;
-                    p.rotation += p.vr;
-                    if (p.y > H + 100) fallingPieces.splice(i, 1);
-                }
+                // TANCEP!
+                // Simpan sudut saat ini (relatif terhadap rotasi wheel saat ini)
+                // Sebenarnya lebih mudah simpan sudut layar absolut, lalu gambar berputar.
+                stuckDarts.push({
+                    angle: dartAngle,
+                    radius: dist
+                });
 
-                // Update Particles
+                dartsThrown++;
+                score += 10;
+                $('#scoreDisplay').text(score);
+                updateDartIndicator();
+
+                // Cek menang level
+                if (dartsThrown >= dartsToThrow) {
+                    nextLevel();
+                }
+            }
+
+            function nextLevel() {
+                state = 'PAUSED'; // Pause sebentar
+                level++;
+                $('#levelDisplay').text(level);
+                
+                // Flash effect
+                ctx.fillStyle = "rgba(255,255,255,0.5)";
+                ctx.fillRect(0,0,W,H);
+                
+                setTimeout(() => {
+                    initLevel();
+                    state = 'PLAYING';
+                }, 500);
+            }
+
+            let particles = [];
+            function createSparks(x, y) {
+                for(let i=0; i<10; i++) {
+                    particles.push({
+                        x: x, y: y,
+                        vx: (Math.random() - 0.5) * 10,
+                        vy: (Math.random() - 0.5) * 10,
+                        life: 1.0
+                    });
+                }
+            }
+
+            function updateParticles() {
                 for (let i = particles.length - 1; i >= 0; i--) {
                     let p = particles[i];
                     p.x += p.vx;
                     p.y += p.vy;
-                    p.life -= 0.02;
+                    p.life -= 0.05;
                     if (p.life <= 0) particles.splice(i, 1);
                 }
             }
 
+            // --- DRAW ---
             function draw() {
-                // Background Gradient
-                let grad = ctx.createLinearGradient(0, 0, 0, H);
-                grad.addColorStop(0, '#1b1b2f');
-                grad.addColorStop(1, '#16213e');
-                ctx.fillStyle = grad;
-                ctx.fillRect(0, 0, W, H);
+                ctx.clearRect(0, 0, W, H);
 
+                // Draw Wheel
                 ctx.save();
-                // Apply Camera
-                ctx.translate(0, -cameraY);
+                ctx.translate(centerX, centerY);
+                ctx.rotate(wheel.angle);
 
-                // Draw Grid Lines (untuk efek gerak)
-                ctx.strokeStyle = 'rgba(255,255,255,0.03)';
-                ctx.lineWidth = 1;
-                let gridStartY = Math.floor(cameraY / 50) * 50;
-                for(let y = gridStartY; y < cameraY + H; y+=50) {
-                    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-                }
+                // Log Face
+                ctx.fillStyle = '#5c3d2e'; // Dark wood
+                ctx.beginPath();
+                ctx.arc(0, 0, wheel.radius, 0, Math.PI * 2);
+                ctx.fill();
 
-                // Draw Stacked Blocks
-                for (let b of blocks) {
-                    ctx.fillStyle = b.color;
-                    ctx.fillRect(b.x, b.y, b.width, BLOCK_HEIGHT);
-                    // Highlight
-                    ctx.fillStyle = "rgba(255,255,255,0.3)";
-                    ctx.fillRect(b.x, b.y, b.width, 4);
-                    // Outline
-                    if(b.outline) {
-                        ctx.strokeStyle = '#fff';
-                        ctx.lineWidth = 2;
-                        ctx.strokeRect(b.x, b.y, b.width, BLOCK_HEIGHT);
-                    }
-                }
+                // Log Texture (Concentric circles)
+                ctx.strokeStyle = '#8d5524';
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(0,0, wheel.radius*0.3, 0, Math.PI*2); ctx.stroke();
+                ctx.beginPath(); ctx.arc(0,0, wheel.radius*0.6, 0, Math.PI*2); ctx.stroke();
+                ctx.beginPath(); ctx.arc(0,0, wheel.radius*0.9, 0, Math.PI*2); ctx.stroke();
 
-                // Draw Current Block
-                if (currentBlock) {
-                    ctx.fillStyle = currentBlock.color;
-                    ctx.fillRect(currentBlock.x, currentBlock.y, currentBlock.width, BLOCK_HEIGHT);
-                    ctx.strokeStyle = '#fff';
-                    ctx.lineWidth = 2;
-                    ctx.strokeRect(currentBlock.x, currentBlock.y, currentBlock.width, BLOCK_HEIGHT);
+                // Draw Stuck Darts (inside wheel rotation context)
+                ctx.fillStyle = '#ddd';
+                stuckDarts.forEach(d => {
+                    // Kalkulasi posisi x,y dari sudut
+                    let x = Math.cos(d.angle) * (wheel.radius - 20);
+                    let y = Math.sin(d.angle) * (wheel.radius - 20);
                     
-                    // Shadow guide
-                    ctx.fillStyle = "rgba(0,0,0,0.2)";
-                    ctx.fillRect(currentBlock.x, currentBlock.y+BLOCK_HEIGHT, currentBlock.width, 5);
-                }
+                    // Gambar Dart
+                    // Handle
+                    ctx.fillStyle = '#333';
+                    ctx.fillRect(x - 2, y - 20, 4, 25); // Body simplified
+                    // Blade
+                    ctx.fillStyle = '#ccc';
+                    ctx.beginPath();
+                    ctx.moveTo(x, y);
+                    ctx.lineTo(x - 5, y + 10);
+                    ctx.lineTo(x + 5, y + 10);
+                    ctx.fill();
+                });
 
-                // Draw Falling
-                for (let p of fallingPieces) {
-                    ctx.save();
-                    ctx.translate(p.x + p.width/2, p.y + p.height/2);
-                    ctx.rotate(p.rotation);
-                    ctx.fillStyle = p.color;
-                    ctx.fillRect(-p.width/2, -p.height/2, p.width, p.height);
-                    ctx.restore();
+                ctx.restore();
+
+                // Draw Flying Dart
+                if (flyingDart) {
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(flyingDart.x - 2, flyingDart.y, 4, 30); // Body
+                    ctx.beginPath(); // Blade
+                    ctx.moveTo(flyingDart.x, flyingDart.y);
+                    ctx.lineTo(flyingDart.x - 6, flyingDart.y + 10);
+                    ctx.lineTo(flyingDart.x + 6, flyingDart.y + 10);
+                    ctx.fill();
                 }
 
                 // Draw Particles
-                for (let p of particles) {
-                    ctx.globalAlpha = p.life;
-                    ctx.fillStyle = p.color;
-                    ctx.fillRect(p.x, p.y, p.size, p.size);
-                }
-                ctx.globalAlpha = 1.0;
+                particles.forEach(p => {
+                    ctx.fillStyle = `rgba(255, 0, 0, ${p.life})`;
+                    ctx.fillRect(p.x, p.y, 4, 4);
+                });
+                if(particles.length > 0) updateParticles();
+            }
 
-                ctx.restore();
+            function updateDartIndicator() {
+                const container = $('#dartIndicator');
+                container.empty();
+                for(let i=0; i<dartsToThrow; i++) {
+                    const div = $('<div class="dart-icon"></div>');
+                    if(i < dartsThrown) div.addClass('active'); // Already thrown? Actually opposite. Active means remaining.
+                    // Let's fix logic: Grey = Thrown, White = Remaining
+                    // So:
+                    // if (i >= dartsThrown) addClass('active') -> White
+                    if (i >= dartsThrown) div.addClass('active');
+                    container.append(div);
+                }
             }
 
             function loop() {
@@ -443,29 +406,43 @@
             }
 
             // --- EVENTS ---
-            function handleInput() {
-                if (state === 'PLAYING') placeBlock();
+            function handleInput(e) {
+                if (state === 'PLAYING') {
+                    if(e) e.preventDefault();
+                    throwDart();
+                }
             }
 
             $('#gameContainer').on('mousedown touchstart', function(e) {
                 if ($(e.target).is('button')) return;
-                e.preventDefault();
-                handleInput();
+                handleInput(e);
             });
 
-            $(document).on('keydown', (e) => {
+            $(document).on('keydown', function(e) {
                 if (e.code === 'Space' && state === 'PLAYING') {
                     e.preventDefault();
-                    handleInput();
+                    throwDart();
                 }
             });
 
-            $('#startBtn').click((e) => { e.stopPropagation(); startGame(); });
-            $('#restartBtn').click((e) => { e.stopPropagation(); startGame(); });
+            $('#startBtn').click(function(e) {
+                e.stopPropagation();
+                startGame();
+            });
+
+            $('#restartBtn').click(function(e) {
+                e.stopPropagation();
+                startGame();
+            });
 
             function startGame() {
                 state = 'PLAYING';
-                initGame();
+                level = 1;
+                score = 0;
+                particles = [];
+                $('#scoreDisplay').text(0);
+                $('#levelDisplay').text(1);
+                initLevel();
                 $('#startScreen').addClass('hidden');
                 $('#gameOverScreen').addClass('hidden');
                 $('#hud').removeClass('hidden');
@@ -473,18 +450,14 @@
 
             function gameOver() {
                 state = 'GAMEOVER';
-                currentBlock = null;
+                flyingDart = null;
                 
                 setTimeout(() => {
-                    if (score > highScore) {
-                        highScore = score;
-                        localStorage.setItem('skyStackerHigh', highScore);
-                    }
                     $('#finalScore').text(score);
-                    $('#highScore').text(highScore);
+                    $('#finalLevel').text(level);
                     $('#gameOverScreen').removeClass('hidden');
                     $('#hud').addClass('hidden');
-                }, 600);
+                }, 500);
             }
 
             loop();
