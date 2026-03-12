@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ngabuburit Simulator</title>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;700;900&family=Plus+Jakarta+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #1a1612;
+            --bg-secondary: #2d2420;
+            --bg-card: #3d322a;
+            --accent-gold: #e8a849;
+            --accent-orange: #d4763a;
+            --accent-red: #c44536;
+            --text-primary: #f5ebe0;
+            --text-muted: #a69080;
+            --success: #5a9a6e;
+            --danger: #c44536;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .font-display {
+            font-family: 'Crimson Pro', serif;
+        }
+
+        /* Background atmosphere */
+        .atmosphere {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .atmosphere::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse 120% 80% at 70% 0%, rgba(232, 168, 73, 0.15) 0%, transparent 50%),
+                        radial-gradient(ellipse 100% 60% at 30% 100%, rgba(212, 118, 58, 0.1) 0%, transparent 40%);
+        }
+
+        .atmosphere::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            opacity: 0.03;
+        }
+
+        /* Floating particles */
+        .particle {
+            position: fixed;
+            width: 4px;
+            height: 4px;
+            background: var(--accent-gold);
+            border-radius: 50%;
+            pointer-events: none;
+            opacity: 0;
+            animation: float 15s infinite ease-in-out;
+        }
+
+        @keyframes float {
+            0%, 100% { opacity: 0; transform: translateY(100vh) scale(0); }
+            10% { opacity: 0.6; }
+            90% { opacity: 0.6; }
+            100% { opacity: 0; transform: translateY(-20vh) scale(1); }
+        }
+
+        /* Stats bar styling */
+        .stat-bar {
+            height: 12px;
+            border-radius: 6px;
+            background: var(--bg-primary);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .stat-fill {
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.5s ease, background 0.3s ease;
+            position: relative;
+        }
+
+        .stat-fill::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .stat-lapar .stat-fill { background: linear-gradient(90deg, var(--danger), #e85d4c); }
+        .stat-haus .stat-fill { background: linear-gradient(90deg, #4a90a4, #6bb8d0); }
+        .stat-sabar .stat-fill { background: linear-gradient(90deg, var(--accent-gold), var(--accent-orange)); }
+        .stat-uang .stat-fill { background: linear-gradient(90deg, var(--success), #7bc990); }
+
+        /* Activity cards */
+        .activity-card {
+            background: var(--bg-card);
+            border: 1px solid rgba(232, 168, 73, 0.1);
+            border-radius: 16px;
+            padding: 1.25rem;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .activity-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(232, 168, 73, 0.1), transparent);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .activity-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(232, 168, 73, 0.3);
+            box-shadow: 0 12px 40px rgba(232, 168, 73, 0.15);
+        }
+
+        .activity-card:hover::before {
+            opacity: 1;
+        }
+
+        .activity-card:active {
+            transform: translateY(-2px) scale(0.98);
+        }
+
+        .activity-card.disabled {
+            opacity: 0.4;
+            pointer-events: none;
+            filter: grayscale(0.5);
+        }
+
+        /* Clock display */
+        .clock-display {
+            font-size: 3.5rem;
+            font-weight: 900;
+            letter-spacing: 0.05em;
+            background: linear-gradient(135deg, var(--accent-gold), var(--accent-orange));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 60px rgba(232, 168, 73, 0.3);
+        }
+
+        /* Day counter */
+        .day-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-card);
+            border: 1px solid rgba(232, 168, 73, 0.2);
+            border-radius: 999px;
+            font-weight: 700;
+        }
+
+        /* Event modal */
+        .event-modal {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .event-modal.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .event-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+        }
+
+        .event-content {
+            position: relative;
+            background: var(--bg-secondary);
+            border: 1px solid rgba(232, 168, 73, 0.2);
+            border-radius: 24px;
+            padding: 2rem;
+            max-width: 90%;
+            width: 400px;
+            transform: scale(0.9) translateY(20px);
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .event-modal.active .event-content {
+            transform: scale(1) translateY(0);
+        }
+
+        /* Toast notifications */
+        .toast-container {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .toast {
+            padding: 1rem 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid rgba(232, 168, 73, 0.2);
+            border-radius: 12px;
+            animation: slideIn 0.4s ease, fadeOut 0.4s ease 2.6s forwards;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes fadeOut {
+            to { transform: translateX(100%); opacity: 0; }
+        }
+
+        /* Progress indicator */
+        .time-progress {
+            height: 6px;
+            background: var(--bg-primary);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .time-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-gold), var(--accent-orange), var(--danger));
+            transition: width 0.5s linear;
+        }
+
+        /* Game over screen */
+        .game-over-screen {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 300;
+            background: var(--bg-primary);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.5s ease;
+        }
+
+        .game-over-screen.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Button styles */
+        .btn-primary {
+            padding: 0.875rem 2rem;
+            background: linear-gradient(135deg, var(--accent-gold), var(--accent-orange));
+            color: var(--bg-primary);
+            font-weight: 700;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(232, 168, 73, 0.3);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        /* Animations */
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .pulse-animation {
+            animation: pulse 2s infinite ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        .shake {
+            animation: shake 0.5s ease;
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .clock-display {
+                font-size: 2.5rem;
+            }
+            
+            .activity-card {
+                padding: 1rem;
+            }
+        }
+
+        /* Reduced motion */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        /* Start screen */
+        .start-screen {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 400;
+            background: var(--bg-primary);
+            transition: all 0.5s ease;
+        }
+
+        .start-screen.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .title-glow {
+            position: relative;
+        }
+
+        .title-glow::before {
+            content: '';
+            position: absolute;
+            inset: -20px;
+            background: radial-gradient(ellipse at center, rgba(232, 168, 73, 0.2), transparent 70%);
+            z-index: -1;
+        }
+    </style>
+</head>
+<body>
+    <!-- Atmosphere -->
+    <div class="atmosphere"></div>
+    
+    <!-- Floating Particles -->
+    <div id="particles"></div>
+
+    <!-- Start Screen -->
+    <div id="startScreen" class="start-screen">
+        <div class="text-center px-6">
+            <div class="title-glow mb-6">
+                <h1 class="font-display text-5xl md:text-7xl font-black tracking-tight" style="color: var(--accent-gold);">
+                    Ngabuburit
+                </h1>
+                <p class="font-display text-3xl md:text-4xl font-bold mt-2" style="color: var(--accent-orange);">
+                    Simulator
+                </p>
+            </div>
+            
+            <p class="text-lg mb-8 max-w-md mx-auto" style="color: var(--text-muted);">
+                Bertahan menunggu azan Maghrib. Kelola lapar, haus, dan kesabaranmu selama berpuasa.
+            </p>
+
+            <div class="mb-8 p-6 rounded-2xl max-w-md mx-auto" style="background: var(--bg-secondary); border: 1px solid rgba(232, 168, 73, 0.1);">
+                <h3 class="font-bold mb-4" style="color: var(--accent-gold);">Cara Bermain</h3>
+                <ul class="text-left text-sm space-y-2" style="color: var(--text-muted);">
+                    <li>• Pilih aktivitas untuk mengisi waktu ngabuburit</li>
+                    <li>• Jaga stats Lapar, Haus, dan Sabar tetap stabil</li>
+                    <li>• Jika Sabar habis = Game Over</li>
+                    <li>• Bertahan sampai azan Maghrib untuk menang</li>
+                    <li>• Setiap hari akan semakin sulit!</li>
+                </ul>
+            </div>
+
+            <button id="startBtn" class="btn-primary text-lg">
+                Mulai Ngabuburit
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Game -->
+    <main id="gameContainer" class="relative z-10 min-h-screen p-4 md:p-6 opacity-0 transition-opacity duration-500">
+        <div class="max-w-4xl mx-auto">
+            <!-- Header -->
+            <header class="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
+                <div class="day-badge">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--accent-gold);">
+                        <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+                    </svg>
+                    <span>Hari Ke-<span id="dayCount">1</span></span>
+                </div>
+                
+                <div class="text-center">
+                    <div class="clock-display font-display" id="clockDisplay">15:00</div>
+                    <p class="text-sm mt-1" style="color: var(--text-muted);">Waktu Menuju Buka</p>
+                </div>
+
+                <div class="text-right">
+                    <p class="text-sm" style="color: var(--text-muted);">Target Maghrib</p>
+                    <p class="font-bold text-lg" style="color: var(--accent-gold);" id="maghribTime">18:00</p>
+                </div>
+            </header>
+
+            <!-- Time Progress -->
+            <div class="mb-8">
+                <div class="flex justify-between text-sm mb-2" style="color: var(--text-muted);">
+                    <span>Progress Hari Ini</span>
+                    <span id="progressPercent">0%</span>
+                </div>
+                <div class="time-progress">
+                    <div class="time-progress-fill" id="timeProgressFill" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <section class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                <div class="p-4 rounded-xl" style="background: var(--bg-secondary);">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium" style="color: var(--text-muted);">Lapar</span>
+                        <span class="font-bold text-sm" id="laparValue" style="color: var(--danger);">30%</span>
+                    </div>
+                    <div class="stat-bar stat-lapar">
+                        <div class="stat-fill" id="laparBar" style="width: 30%"></div>
+                    </div>
+                </div>
+
+                <div class="p-4 rounded-xl" style="background: var(--bg-secondary);">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium" style="color: var(--text-muted);">Haus</span>
+                        <span class="font-bold text-sm" id="hausValue" style="color: #6bb8d0;">25%</span>
+                    </div>
+                    <div class="stat-bar stat-haus">
+                        <div class="stat-fill" id="hausBar" style="width: 25%"></div>
+                    </div>
+                </div>
+
+                <div class="p-4 rounded-xl" style="background: var(--bg-secondary);">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium" style="color: var(--text-muted);">Sabar</span>
+                        <span class="font-bold text-sm" id="sabarValue" style="color: var(--accent-gold);">80%</span>
+                    </div>
+                    <div class="stat-bar stat-sabar">
+                        <div class="stat-fill" id="sabarBar" style="width: 80%"></div>
+                    </div>
+                </div>
+
+                <div class="p-4 rounded-xl" style="background: var(--bg-secondary);">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium" style="color: var(--text-muted);">Uang</span>
+                        <span class="font-bold text-sm" id="uangValue" style="color: var(--success);">Rp 50.000</span>
+                    </div>
+                    <div class="stat-bar stat-uang">
+                        <div class="stat-fill" id="uangBar" style="width: 50%"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Activities -->
+            <section class="mb-8">
+                <h2 class="font-display text-2xl font-bold mb-4" style="color: var(--accent-gold);">Pilih Aktivitas</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" id="activitiesGrid">
+                    <!-- Activities will be rendered here -->
+                </div>
+            </section>
+
+            <!-- Event Log -->
+            <section class="p-4 rounded-xl" style="background: var(--bg-secondary); border: 1px solid rgba(232, 168, 73, 0.1);">
+                <h3 class="font-bold mb-3" style="color: var(--text-muted);">Log Aktivitas</h3>
+                <div id="eventLog" class="space-y-2 max-h-40 overflow-y-auto text-sm">
+                    <p style="color: var(--text-muted);">Hari pertama ngabuburit dimulai...</p>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Event Modal -->
+    <div id="eventModal" class="event-modal" role="dialog" aria-modal="true" aria-labelledby="eventTitle">
+        <div class="event-backdrop" id="eventBackdrop"></div>
+        <div class="event-content">
+            <div class="text-center">
+                <div class="text-5xl mb-4" id="eventIcon">⚠</div>
+                <h3 class="font-display text-2xl font-bold mb-2" id="eventTitle" style="color: var(--accent-gold);">Event!</h3>
+                <p class="mb-6" id="eventDesc" style="color: var(--text-muted);">Deskripsi event...</p>
+                <div class="flex gap-3 justify-center" id="eventActions">
+                    <!-- Buttons rendered dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="gameOverScreen" class="game-over-screen">
+        <div class="text-center px-6">
+            <div class="text-6xl mb-6">😢</div>
+            <h2 class="font-display text-4xl md:text-5xl font-black mb-4" style="color: var(--danger);">Game Over</h2>
+            <p class="text-lg mb-2" style="color: var(--text-muted);">Kesabaranmu habis sebelum azan Maghrib!</p>
+            <p class="text-2xl font-bold mb-6" style="color: var(--accent-gold);">Kamu bertahan <span id="finalDays">1</span> hari</p>
+            
+            <div class="p-4 rounded-xl mb-6 max-w-sm mx-auto" style="background: var(--bg-secondary);">
+                <p class="text-sm" style="color: var(--text-muted);">Total Waktu Ngabuburit</p>
+                <p class="text-xl font-bold" id="totalTime" style="color: var(--accent-orange);">0 jam 0 menit</p>
+            </div>
+
+            <button id="restartBtn" class="btn-primary">
+                Coba Lagi
+            </button>
+        </div>
+    </div>
+
+    <!-- Day Complete Modal -->
+    <div id="dayCompleteModal" class="event-modal" role="dialog" aria-modal="true">
+        <div class="event-backdrop"></div>
+        <div class="event-content">
+            <div class="text-center">
+                <div class="text-6xl mb-4">🌙</div>
+                <h3 class="font-display text-3xl font-bold mb-2" style="color: var(--accent-gold);">Azan Maghrib!</h3>
+                <p class="mb-4" style="color: var(--text-muted);">Kamu berhasil bertahan hari ini!</p>
+                <div class="p-4 rounded-xl mb-6" style="background: var(--bg-card);">
+                    <p class="text-sm" style="color: var(--text-muted);">Bonus Kesabaran</p>
+                    <p class="text-xl font-bold" style="color: var(--success);">+30 Sabar</p>
+                </div>
+                <button id="nextDayBtn" class="btn-primary">
+                    Lanjut Hari Berikutnya
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script>
+        // ============ GAME DATA ============
+        const ACTIVITIES = [
+            {
+                id: 'jalanMall',
+                name: 'Jalan ke Mall',
+                desc: 'Cari angin dan liat orang makan (berbahaya!)',
+                icon: '🏬',
+                timeCost: 30,
+                effects: { lapar: 15, haus: 10, sabar: -10 },
+                money: 0
+            },
+            {
+                id: 'tidurSiang',
+                name: 'Tidur Siang',
+                desc: 'Istirahat sebentar untuk menghilangkan lapar',
+                icon: '😴',
+                timeCost: 45,
+                effects: { lapar: -10, haus: 5, sabar: 5 },
+                money: 0
+            },
+            {
+                id: 'mainGame',
+                name: 'Main Game',
+                desc: 'Alihkan perhatian dengan bermain game',
+                icon: '🎮',
+                timeCost: 25,
+                effects: { lapar: 5, haus: 5, sabar: 10 },
+                money: 0
+            },
+            {
+                id: 'bacaQuran',
+                name: 'Baca Quran',
+                desc: 'Menenangkan hati dan menambah pahala',
+                icon: '📖',
+                timeCost: 20,
+                effects: { lapar: 5, haus: 5, sabar: 20 },
+                money: 0
+            },
+            {
+                id: 'cariTakjil',
+                name: 'Cari Takjil',
+                desc: 'Beli takjil untuk buka nanti (Rp 15.000)',
+                icon: '🥘',
+                timeCost: 35,
+                effects: { lapar: 15, haus: 10, sabar: -5 },
+                money: -15000,
+                hasItem: true,
+                itemName: 'takjil'
+            },
+            {
+                id: 'nongkrong',
+                name: 'Nongkrong',
+                desc: 'Ngobrol dengan teman-teman',
+                icon: '☕',
+                timeCost: 30,
+                effects: { lapar: 10, haus: 10, sabar: 15 },
+                money: 0
+            },
+            {
+                id: 'masak',
+                name: 'Masak untuk Buka',
+                desc: 'Siapkan makanan buka sendiri',
+                icon: '👨‍🍳',
+                timeCost: 50,
+                effects: { lapar: 20, haus: 15, sabar: -15 },
+                money: 0,
+                hasItem: true,
+                itemName: 'masakan'
+            },
+            {
+                id: 'ngaji',
+                name: 'Ngaji / Belajar Agama',
+                desc: 'Tingkatkan keimanan dan kesabaran',
+                icon: '🕌',
+                timeCost: 40,
+                effects: { lapar: 8, haus: 8, sabar: 25 },
+                money: 0
+            },
+            {
+                id: 'scrollMedia',
+                name: 'Scroll Media Sosial',
+                desc: 'Bahaya kalau ketemu foto makanan!',
+                icon: '📱',
+                timeCost: 20,
+                effects: { lapar: 12, haus: 8, sabar: -5 },
+                money: 0
+            }
+        ];
+
+        const RANDOM_EVENTS = [
+            {
+                id: 'temanMakan',
+                title: 'Teman Makan di Depanmu!',
+                desc: 'Temanmu dengan tidak sadar makan gorengan di depanmu. Bau harum menusuk hidung...',
+                icon: '😤',
+                choices: [
+                    { text: 'Tahan dan tinggal pergi', effects: { sabar: -15, lapar: 10 } },
+                    { text: 'Ingatkan dia', effects: { sabar: -5, haus: 5 } }
+                ]
+            },
+            {
+                id: 'promoMakanan',
+                title: 'Promo Makanan!',
+                desc: 'Ada promo makanan buka puasa di restoran favoritmu! Kamu tergoda untuk membeli voucher...',
+                icon: '🍽️',
+                choices: [
+                    { text: 'Beli voucher (Rp 25.000)', effects: { uang: -25000, sabar: -10 }, item: 'voucher' },
+                    { text: 'Abaikan promo', effects: { sabar: 5 } }
+                ]
+            },
+            {
+                id: 'macet',
+                title: 'Macet Parah!',
+                desc: 'Jalan macet total! Kamu terjebak di dalam angkot yang panas...',
+                icon: '🚗',
+                choices: [
+                    { text: 'Turun dan jalan kaki', effects: { haus: 20, lapar: 10, sabar: -10 } },
+                    { text: 'Tetap di angkot', effects: { haus: 15, sabar: -20 } }
+                ]
+            },
+            {
+                id: 'bukaPintuKulkas',
+                title: 'Godaan Kulkas',
+                desc: 'Kamu tidak sengaja membuka pintu kulkas dan melihat es teh manis dingin...',
+                icon: '🧊',
+                choices: [
+                    { text: 'Tutup cepat!', effects: { sabar: -5, haus: 10 } },
+                    { text: 'Lihat sebentar...', effects: { sabar: -15, haus: 15 } }
+                ]
+            },
+            {
+                id: 'sahurTersedak',
+                title: 'Flashback Sahur',
+                desc: 'Kamu teringat makanan sahur tadi yang enak... Perutmu berbunyi nyaring.',
+                icon: '🤤',
+                choices: [
+                    { text: 'Alihkan pikiran', effects: { sabar: 5, lapar: 5 } },
+                    { text: 'Bayangkan makanannya', effects: { sabar: -10, lapar: 15 } }
+                ]
+            },
+            {
+                id: 'orangMarah',
+                title: 'Orang Marah',
+                desc: 'Ada orang yang marah tanpa sebab kepadamu. Emosi naik!',
+                icon: '😠',
+                choices: [
+                    { text: 'Sabar dan maafkan', effects: { sabar: 15, lapar: 5 } },
+                    { text: 'Marah balik', effects: { sabar: -25, lapar: 10 } }
+                ]
+            },
+            {
+                id: 'dapatSedekah',
+                title: 'Dapat Sedekah!',
+                desc: 'Ada orang baik yang memberikan amplop sedekah untukmu!',
+                icon: '🤲',
+                choices: [
+                    { text: 'Terima dengan syukur', effects: { uang: 20000, sabar: 10 } },
+                    { text: 'Tolak dengan sopan', effects: { sabar: 15 } }
+                ]
+            },
+            {
+                id: 'cuacaPanas',
+                title: 'Cuaca Sangat Panas!',
+                desc: 'Matahari terik sekali hari ini. Haus melanda!',
+                icon: '☀️',
+                choices: [
+                    { text: 'Cari tempat teduh', effects: { haus: 10, sabar: -5 } },
+                    { text: 'Tetap jalan', effects: { haus: 25, sabar: -15 } }
+                ]
+            }
+        ];
+
+        // ============ GAME STATE ============
+        let gameState = {
+            day: 1,
+            hour: 15,
+            minute: 0,
+            lapar: 30,
+            haus: 25,
+            sabar: 80,
+            uang: 50000,
+            maxUang: 100000,
+            totalMinutes: 0,
+            isPlaying: false,
+            isPaused: false,
+            items: [],
+            maghribHour: 18,
+            difficulty: 1
+        };
+
+        // ============ DOM ELEMENTS ============
+        const $clockDisplay = $('#clockDisplay');
+        const $dayCount = $('#dayCount');
+        const $progressPercent = $('#progressPercent');
+        const $timeProgressFill = $('#timeProgressFill');
+        const $laparBar = $('#laparBar');
+        const $laparValue = $('#laparValue');
+        const $hausBar = $('#hausBar');
+        const $hausValue = $('#hausValue');
+        const $sabarBar = $('#sabarBar');
+        const $sabarValue = $('#sabarValue');
+        const $uangBar = $('#uangBar');
+        const $uangValue = $('#uangValue');
+        const $activitiesGrid = $('#activitiesGrid');
+        const $eventLog = $('#eventLog');
+        const $eventModal = $('#eventModal');
+        const $gameOverScreen = $('#gameOverScreen');
+        const $dayCompleteModal = $('#dayCompleteModal');
+        const $startScreen = $('#startScreen');
+        const $gameContainer = $('#gameContainer');
+        const $toastContainer = $('#toastContainer');
+
+        // ============ UTILITY FUNCTIONS ============
+        function clamp(val, min, max) {
+            return Math.max(min, Math.min(max, val));
+        }
+
+        function formatTime(hour, minute) {
+            return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+        }
+
+        function formatRupiah(amount) {
+            return `Rp ${amount.toLocaleString('id-ID')}`;
+        }
+
+        function randomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        // ============ UI UPDATE FUNCTIONS ============
+        function updateUI() {
+            // Clock
+            $clockDisplay.text(formatTime(gameState.hour, gameState.minute));
+            $dayCount.text(gameState.day);
+
+            // Progress
+            const totalGameMinutes = (gameState.maghribHour - 15) * 60; // 180 minutes
+            const elapsedMinutes = (gameState.hour - 15) * 60 + gameState.minute;
+            const progress = clamp((elapsedMinutes / totalGameMinutes) * 100, 0, 100);
+            $progressPercent.text(`${Math.round(progress)}%`);
+            $timeProgressFill.css('width', `${progress}%`);
+
+            // Stats
+            updateStatBar('lapar', gameState.lapar);
+            updateStatBar('haus', gameState.haus);
+            updateStatBar('sabar', gameState.sabar);
+            
+            // Uang
+            const uangPercent = (gameState.uang / gameState.maxUang) * 100;
+            $uangBar.css('width', `${clamp(uangPercent, 0, 100)}%`);
+            $uangValue.text(formatRupiah(gameState.uang));
+
+            // Color warnings
+            updateStatColors();
+        }
+
+        function updateStatBar(stat, value) {
+            const clampedValue = clamp(value, 0, 100);
+            $(`#${stat}Bar`).css('width', `${clampedValue}%`);
+            $(`#${stat}Value`).text(`${Math.round(clampedValue)}%`);
+        }
+
+        function updateStatColors() {
+            // Sabar warning
+            if (gameState.sabar <= 20) {
+                $sabarValue.css('color', 'var(--danger)');
+                $sabarBar.addClass('shake');
+                setTimeout(() => $sabarBar.removeClass('shake'), 500);
+            } else {
+                $sabarValue.css('color', 'var(--accent-gold)');
+            }
+
+            // Lapar warning
+            if (gameState.lapar >= 80) {
+                $laparValue.css('color', '#ff6b6b');
+            } else {
+                $laparValue.css('color', 'var(--danger)');
+            }
+
+            // Haus warning
+            if (gameState.haus >= 80) {
+                $hausValue.css('color', '#ff6b6b');
+            } else {
+                $hausValue.css('color', '#6bb8d0');
+            }
+        }
+
+        function addLog(message, type = 'normal') {
+            const colors = {
+                normal: 'var(--text-muted)',
+                good: 'var(--success)',
+                bad: 'var(--danger)',
+                info: 'var(--accent-gold)'
+            };
+            
+            const time = formatTime(gameState.hour, gameState.minute);
+            $eventLog.prepend(`<p style="color: ${colors[type]};">[${time}] ${message}</p>`);
+            
+            // Keep only last 10 entries
+            $eventLog.children().slice(10).remove();
+        }
+
+        function showToast(message, type = 'info') {
+            const colors = {
+                info: 'var(--accent-gold)',
+                success: 'var(--success)',
+                danger: 'var(--danger)'
+            };
+            
+            const $toast = $(`
+                <div class="toast" style="border-left: 3px solid ${colors[type]};">
+                    ${message}
+                </div>
+            `);
+            
+            $toastContainer.append($toast);
+            setTimeout(() => $toast.remove(), 3000);
+        }
+
+        // ============ ACTIVITY RENDERING ============
+        function renderActivities() {
+            $activitiesGrid.empty();
+            
+            ACTIVITIES.forEach(activity => {
+                const canAfford = gameState.uang >= Math.abs(activity.money);
+                const isDisabled = !canAfford && activity.money < 0;
+                
+                const $card = $(`
+                    <div class="activity-card ${isDisabled ? 'disabled' : ''}" data-id="${activity.id}" tabindex="0" role="button" aria-label="${activity.name}">
+                        <div class="flex items-start gap-3">
+                            <div class="text-3xl">${activity.icon}</div>
+                            <div class="flex-1">
+                                <h3 class="font-bold mb-1">${activity.name}</h3>
+                                <p class="text-xs mb-2" style="color: var(--text-muted);">${activity.desc}</p>
+                                <div class="flex flex-wrap gap-2 text-xs">
+                                    <span class="px-2 py-1 rounded" style="background: var(--bg-primary); color: var(--accent-gold);">
+                                        ${activity.timeCost} menit
+                                    </span>
+                                    ${activity.money !== 0 ? `
+                                        <span class="px-2 py-1 rounded" style="background: var(--bg-primary); color: ${activity.money < 0 ? 'var(--danger)' : 'var(--success)'};">
+                                            ${activity.money < 0 ? '-' : '+'}${formatRupiah(Math.abs(activity.money))}
+                                        </span>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `);
+                
+                $activitiesGrid.append($card);
+            });
+        }
+
+        // ============ GAME LOGIC ============
+        function doActivity(activityId) {
+            const activity = ACTIVITIES.find(a => a.id === activityId);
+            if (!activity) return;
+
+            // Check if can afford
+            if (activity.money < 0 && gameState.uang < Math.abs(activity.money)) {
+                showToast('Uang tidak cukup!', 'danger');
+                return;
+            }
+
+            // Apply effects
+            gameState.lapar = clamp(gameState.lapar + activity.effects.lapar, 0, 100);
+            gameState.haus = clamp(gameState.haus + activity.effects.haus, 0, 100);
+            gameState.sabar = clamp(gameState.sabar + activity.effects.sabar, 0, 100);
+            gameState.uang = clamp(gameState.uang + activity.money, 0, gameState.maxUang);
+
+            // Add item if applicable
+            if (activity.hasItem) {
+                gameState.items.push(activity.itemName);
+                addLog(`Kamu mendapatkan: ${activity.itemName}`, 'good');
+            }
+
+            // Advance time
+            advanceTime(activity.timeCost);
+
+            // Log
+            addLog(`Kamu ${activity.name.toLowerCase()}`, 'info');
+
+            // Update UI
+            updateUI();
+            renderActivities();
+
+            // Check game state
+            checkGameState();
+        }
+
+        function advanceTime(minutes) {
+            gameState.minute += minutes;
+            gameState.totalMinutes += minutes;
+
+            // Handle hour overflow
+            while (gameState.minute >= 60) {
+                gameState.minute -= 60;
+                gameState.hour++;
+            }
+
+            // Natural decay based on difficulty
+            const decay = 0.5 * gameState.difficulty;
+            gameState.lapar = clamp(gameState.lapar + (minutes * decay * 0.1), 0, 100);
+            gameState.haus = clamp(gameState.haus + (minutes * decay * 0.08), 0, 100);
+
+            // Calculate sabar drain based on lapar/haus
+            const pressure = (gameState.lapar + gameState.haus) / 200;
+            const sabarDrain = pressure * minutes * 0.05 * gameState.difficulty;
+            gameState.sabar = clamp(gameState.sabar - sabarDrain, 0, 100);
+        }
+
+        function checkGameState() {
+            // Check for game over
+            if (gameState.sabar <= 0) {
+                gameOver();
+                return;
+            }
+
+            // Check for maghrib (day complete)
+            if (gameState.hour >= gameState.maghribHour) {
+                dayComplete();
+                return;
+            }
+
+            // Random event chance
+            if (Math.random() < 0.15) {
+                triggerRandomEvent();
+            }
+        }
+
+        function triggerRandomEvent() {
+            if (gameState.isPaused) return;
+            
+            gameState.isPaused = true;
+            
+            const event = RANDOM_EVENTS[randomInt(0, RANDOM_EVENTS.length - 1)];
+            
+            $('#eventIcon').text(event.icon);
+            $('#eventTitle').text(event.title);
+            $('#eventDesc').text(event.desc);
+            
+            const $actions = $('#eventActions');
+            $actions.empty();
+            
+            event.choices.forEach((choice, index) => {
+                const $btn = $(`<button class="btn-primary text-sm">${choice.text}</button>`);
+                $btn.on('click', () => handleEventChoice(choice, event));
+                $actions.append($btn);
+            });
+            
+            $eventModal.addClass('active');
+        }
+
+        function handleEventChoice(choice, event) {
+            // Apply effects
+            if (choice.effects.sabar !== undefined) {
+                gameState.sabar = clamp(gameState.sabar + choice.effects.sabar, 0, 100);
+            }
+            if (choice.effects.lapar !== undefined) {
+                gameState.lapar = clamp(gameState.lapar + choice.effects.lapar, 0, 100);
+            }
+            if (choice.effects.haus !== undefined) {
+                gameState.haus = clamp(gameState.haus + choice.effects.haus, 0, 100);
+            }
+            if (choice.effects.uang !== undefined) {
+                gameState.uang = clamp(gameState.uang + choice.effects.uang, 0, gameState.maxUang);
+            }
+            if (choice.item) {
+                gameState.items.push(choice.item);
+            }
+
+            addLog(`Event: ${event.title} - ${choice.text}`, 'info');
+            
+            // Close modal
+            $eventModal.removeClass('active');
+            gameState.isPaused = false;
+            
+            updateUI();
+            renderActivities();
+            checkGameState();
+        }
+
+        function dayComplete() {
+            gameState.isPaused = true;
+            
+            // Bonus sabar for completing the day
+            gameState.sabar = clamp(gameState.sabar + 30, 0, 100);
+            
+            $dayCompleteModal.addClass('active');
+        }
+
+        function nextDay() {
+            $dayCompleteModal.removeClass('active');
+            
+            // Reset for new day
+            gameState.day++;
+            gameState.hour = 15;
+            gameState.minute = 0;
+            gameState.difficulty = 1 + (gameState.day * 0.15); // Increase difficulty each day
+            
+            // Reset stats with some carryover penalty
+            gameState.lapar = clamp(30 + (gameState.day * 5), 0, 50);
+            gameState.haus = clamp(25 + (gameState.day * 3), 0, 45);
+            gameState.sabar = clamp(gameState.sabar - 10, 30, 100);
+            
+            // Give some money each day
+            gameState.uang = clamp(gameState.uang + 25000, 0, gameState.maxUang);
+            
+            addLog(`Hari ${gameState.day} dimulai!`, 'good');
+            showToast(`Hari ${gameState.day} - Tingkat kesulitan naik!`, 'info');
+            
+            gameState.isPaused = false;
+            
+            updateUI();
+            renderActivities();
+        }
+
+        function gameOver() {
+            gameState.isPlaying = false;
+            
+            $('#finalDays').text(gameState.day);
+            
+            const hours = Math.floor(gameState.totalMinutes / 60);
+            const mins = gameState.totalMinutes % 60;
+            $('#totalTime').text(`${hours} jam ${mins} menit`);
+            
+            $gameOverScreen.addClass('active');
+        }
+
+        function resetGame() {
+            gameState = {
+                day: 1,
+                hour: 15,
+                minute: 0,
+                lapar: 30,
+                haus: 25,
+                sabar: 80,
+                uang: 50000,
+                maxUang: 100000,
+                totalMinutes: 0,
+                isPlaying: false,
+                isPaused: false,
+                items: [],
+                maghribHour: 18,
+                difficulty: 1
+            };
+            
+            $eventLog.html('<p style="color: var(--text-muted);">Hari pertama ngabuburit dimulai...</p>');
+            $gameOverScreen.removeClass('active');
+            
+            updateUI();
+            renderActivities();
+            
+            gameState.isPlaying = true;
+        }
+
+        function startGame() {
+            $startScreen.addClass('hidden');
+            $gameContainer.css('opacity', '1');
+            
+            resetGame();
+        }
+
+        // ============ PARTICLES ============
+        function createParticles() {
+            const container = $('#particles');
+            const particleCount = 15;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const $particle = $('<div class="particle"></div>');
+                $particle.css({
+                    left: `${randomInt(0, 100)}%`,
+                    animationDelay: `${randomInt(0, 15)}s`,
+                    animationDuration: `${15 + randomInt(0, 10)}s`
+                });
+                container.append($particle);
+            }
+        }
+
+        // ============ EVENT LISTENERS ============
+        $(document).ready(function() {
+            createParticles();
+            
+            // Start button
+            $('#startBtn').on('click', startGame);
+            
+            // Activity click
+            $(document).on('click', '.activity-card:not(.disabled)', function() {
+                if (gameState.isPaused || !gameState.isPlaying) return;
+                const activityId = $(this).data('id');
+                doActivity(activityId);
+            });
+            
+            // Keyboard support for activities
+            $(document).on('keydown', '.activity-card', function(e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    $(this).click();
+                }
+            });
+            
+            // Restart button
+            $('#restartBtn').on('click', function() {
+                $gameOverScreen.removeClass('active');
+                resetGame();
+            });
+            
+            // Next day button
+            $('#nextDayBtn').on('click', nextDay);
+            
+            // Close modal on backdrop click
+            $('#eventBackdrop').on('click', function() {
+                // Don't allow closing event modal without choice
+            });
+            
+            // Initial render
+            renderActivities();
+            updateUI();
+        });
+    </script>
+</body>
+</html>
