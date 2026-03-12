@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Midnight Racer</title>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <style>
+        :root {
+            --road-color: #333;
+            --line-color: #FFF;
+            --grass-color: #2E7D32; /* Dark Green */
+            --car-player: #FFD700; /* Gold/Yellow */
+            --car-enemy: #D32F2F; /* Red */
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #111;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            touch-action: none;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 400px;
+            height: 600px;
+            max-width: 100vw;
+            max-height: 100vh;
+            border-left: 5px solid #FFF;
+            border-right: 5px solid #FFF;
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.2);
+        }
+
+        canvas {
+            display: block;
+            background-color: var(--road-color);
+        }
+
+        /* UI Styling */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            color: white;
+            text-align: center;
+            transition: opacity 0.3s;
+        }
+
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin: 0 0 10px 0;
+            color: #FFD700;
+            text-shadow: 0 0 10px #FFD700;
+            text-transform: uppercase;
+            letter-spacing: 5px;
+        }
+
+        h2 {
+            font-size: 1.2rem;
+            color: #CCC;
+            margin-bottom: 2rem;
+            font-weight: normal;
+        }
+
+        .stat-box {
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+
+        .stat-box span {
+            color: #4FC3F7;
+            font-weight: bold;
+        }
+
+        button {
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            background: transparent;
+            color: #FFF;
+            border: 2px solid #FFF;
+            cursor: pointer;
+            font-family: inherit;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        button:hover {
+            background: #FFF;
+            color: #000;
+        }
+
+        #hud {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-sizing: border-box;
+            color: white;
+            font-size: 1.2rem;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px black;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        /* Mobile Control Visuals */
+        #touchControls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 150px;
+            display: none; /* Only show on touch devices */
+            justify-content: space-between;
+            align-items: center;
+            z-index: 5;
+            opacity: 0.3;
+            pointer-events: none;
+        }
+        .touch-arrow {
+            font-size: 3rem;
+            color: white;
+            margin: 0 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="hud" class="hidden">
+            <div>SKOR: <span id="scoreDisplay">0</span></div>
+            <div>SPD: <span id="speedDisplay">1</span>x</div>
+        </div>
+
+        <!-- Touch Visual Hints (Cosmetic only) -->
+        <div id="touchControls">
+            <div class="touch-arrow"> < </div>
+            <div class="touch-arrow"> > </div>
+        </div>
+
+        <!-- Start Screen -->
+        <div id="startScreen" class="overlay">
+            <h1>Midnight<br>Racer</h1>
+            <h2>Hindari mobil lain yang melaju</h2>
+            <div class="stat-box">
+                Gunakan <span>A / D</span> atau <span>Arrow Keys</span><br>
+                (Tap kiri/kanan di HP)
+            </div>
+            <button id="startBtn">GAS!</button>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="gameOverScreen" class="overlay hidden">
+            <h1>CRASH!</h1>
+            <div class="stat-box">
+                Jarak Tempuh: <span id="finalScore">0</span> M<br>
+                Kecepatan Akhir: <span id="finalSpeed">0</span> km/h
+            </div>
+            <p style="color: #888; margin-bottom: 20px;">Rekor: <span id="highScore">0</span> M</p>
+            <button id="restartBtn">Main Lagi</button>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            // --- SETUP ---
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Logical Resolution
+            const W = 400;
+            const H = 600;
+            canvas.width = W;
+            canvas.height = H;
+
+            // Game State
+            let state = 'MENU'; // MENU, PLAYING, GAMEOVER
+            let score = 0;
+            let highScore = localStorage.getItem('midnightHighScore') || 0;
+            let frameCount = 0;
+            let animationId;
+
+            // Game Variables
+            let speed = 5; // Base speed
+            let roadLineY = 0;
+
+            // Player Car
+            const carW = 40;
+            const carH = 70;
+            const player = {
+                x: W/2 - carW/2,
+                y: H - 100,
+                width: carW,
+                height: carH,
+                dx: 0, // Direction X
+                targetX: W/2 - carW/2,
+                moveSpeed: 0.2, // Smoothness factor (lerp)
+                color: '#FFD700' // Gold
+            };
+
+            // Enemies (Other Cars)
+            const enemies = [];
+            const enemyColors = ['#D32F2F', '#1976D2', '#388E3C', '#7B1FA2', '#FBC02D'];
+            
+            // Lane definitions (3 Lanes)
+            const lanes = [W * 0.25, W * 0.5, W * 0.75];
+            
+            // --- INPUT HANDLING ---
+            let keys = { left: false, right: false };
+
+            $(document).on('keydown', function(e) {
+                if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = true;
+                if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
+            });
+
+            $(document).on('keyup', function(e) {
+                if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
+                if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+            });
+
+            // Touch Controls
+            let touchStartX = 0;
+            $('#gameContainer').on('touchstart', function(e) {
+                touchStartX = e.originalEvent.touches[0].clientX;
+                // Detect side tap for instant reaction
+                const rect = canvas.getBoundingClientRect();
+                const touchX = e.originalEvent.touches[0].clientX - rect.left;
+                
+                if (touchX < W / 2) {
+                    keys.left = true;
+                    keys.right = false;
+                } else {
+                    keys.right = true;
+                    keys.left = false;
+                }
+            });
+
+            $('#gameContainer').on('touchend', function(e) {
+                keys.left = false;
+                keys.right = false;
+            });
+
+            // --- GAME LOGIC ---
+
+            function spawnEnemy() {
+                // Random lane
+                const laneIndex = Math.floor(Math.random() * lanes.length);
+                const laneX = lanes[laneIndex] - carW/2;
+                
+                // Random type (simple truck or car)
+                const isTruck = Math.random() > 0.8;
+                const h = isTruck ? 100 : 70;
+                const w = isTruck ? 45 : 40;
+                const color = enemyColors[Math.floor(Math.random() * enemyColors.length)];
+
+                // Avoid spawning on top of recent enemies immediately (basic check)
+                let canSpawn = true;
+                for(let e of enemies) {
+                    if (Math.abs(e.x - laneX) < 10 && e.y < 100) {
+                        canSpawn = false; break;
+                    }
+                }
+
+                if (canSpawn) {
+                    enemies.push({
+                        x: laneX,
+                        y: -h,
+                        width: w,
+                        height: h,
+                        color: color,
+                        speedOffset: (Math.random() * 2) - 1 // Some cars drive slightly slower/faster
+                    });
+                }
+            }
+
+            function update() {
+                if (state !== 'PLAYING') return;
+
+                frameCount++;
+
+                // Increase difficulty over time
+                if (frameCount % 500 === 0) {
+                    speed += 0.5;
+                }
+
+                // Update Player Position (Smooth Movement)
+                if (keys.left) player.targetX -= 5;
+                if (keys.right) player.targetX += 5;
+
+                // Clamp target to road bounds
+                player.targetX = Math.max(10, Math.min(W - player.width - 10, player.targetX));
+                
+                // Lerp (Smooth transition)
+                player.x += (player.targetX - player.x) * player.moveSpeed;
+
+                // Road Animation
+                roadLineY += speed;
+                if (roadLineY >= 50) roadLineY = 0;
+
+                // Spawn Enemies
+                // Spawn rate depends on speed
+                const spawnRate = Math.max(40, 80 - speed * 2);
+                if (frameCount % Math.floor(spawnRate) === 0) {
+                    spawnEnemy();
+                }
+
+                // Update Enemies
+                for (let i = enemies.length - 1; i >= 0; i--) {
+                    let e = enemies[i];
+                    e.y += speed + e.speedOffset;
+
+                    // Remove off-screen
+                    if (e.y > H + 100) {
+                        enemies.splice(i, 1);
+                        score += 10;
+                        continue;
+                    }
+
+                    // Collision Detection (AABB)
+                    if (
+                        player.x < e.x + e.width - 5 && // Padding for forgiving hitbox
+                        player.x + player.width > e.x + 5 &&
+                        player.y < e.y + e.height - 10 &&
+                        player.y + player.height > e.y + 10
+                    ) {
+                        gameOver();
+                    }
+                }
+
+                // Score increment
+                if (frameCount % 10 === 0) score++;
+                $('#scoreDisplay').text(score);
+                $('#speedDisplay').text((speed / 5).toFixed(1));
+            }
+
+            // --- DRAWING ---
+
+            function drawCar(x, y, w, h, color, isPlayer) {
+                ctx.fillStyle = color;
+                ctx.fillRect(x, y, w, h); // Body
+
+                // Windshield
+                ctx.fillStyle = '#222';
+                if (isPlayer) {
+                    ctx.fillRect(x + 5, y + 5, w - 10, 15); // Front window
+                } else {
+                    ctx.fillRect(x + 5, y + h - 20, w - 10, 15); // Rear window for enemies
+                }
+
+                // Wheels
+                ctx.fillStyle = '#111';
+                ctx.fillRect(x - 2, y + 5, 5, 15);
+                ctx.fillRect(x + w - 3, y + 5, 5, 15);
+                ctx.fillRect(x - 2, y + h - 20, 5, 15);
+                ctx.fillRect(x + w - 3, y + h - 20, 5, 15);
+
+                // Headlights/Backlights
+                if (isPlayer) {
+                    ctx.fillStyle = '#FFF'; // Front lights
+                    ctx.fillRect(x + 5, y, 8, 3);
+                    ctx.fillRect(x + w - 13, y, 8, 3);
+                } else {
+                    ctx.fillStyle = '#FF0000'; // Tail lights
+                    ctx.fillRect(x + 5, y + h - 3, 8, 3);
+                    ctx.fillRect(x + w - 13, y + h - 3, 8, 3);
+                }
+            }
+
+            function draw() {
+                // Clear Canvas
+                ctx.clearRect(0, 0, W, H);
+
+                // Draw Road
+                ctx.fillStyle = "#333";
+                ctx.fillRect(0, 0, W, H);
+
+                // Draw Road Lines
+                ctx.strokeStyle = "#FFF";
+                ctx.lineWidth = 3;
+                ctx.setLineDash([30, 20]); // Dash pattern
+                ctx.lineDashOffset = -roadLineY * 2; // Animate dashes
+                
+                // Left Lane Line
+                ctx.beginPath();
+                ctx.moveTo(W * 0.33, 0);
+                ctx.lineTo(W * 0.33, H);
+                ctx.stroke();
+
+                // Right Lane Line
+                ctx.beginPath();
+                ctx.moveTo(W * 0.66, 0);
+                ctx.lineTo(W * 0.66, H);
+                ctx.stroke();
+
+                ctx.setLineDash([]); // Reset dash
+
+                // Draw Enemies
+                enemies.forEach(e => {
+                    drawCar(e.x, e.y, e.width, e.height, e.color, false);
+                });
+
+                // Draw Player
+                drawCar(player.x, player.y, player.width, player.height, player.color, true);
+            }
+
+            // --- GAME LOOP ---
+            function loop() {
+                update();
+                draw();
+                animationId = requestAnimationFrame(loop);
+            }
+
+            // --- STATE MANAGEMENT ---
+            
+            function startGame() {
+                state = 'PLAYING';
+                score = 0;
+                speed = 5;
+                frameCount = 0;
+                enemies.length = 0;
+                player.x = W/2 - carW/2;
+                player.targetX = player.x;
+                
+                $('#startScreen').addClass('hidden');
+                $('#gameOverScreen').addClass('hidden');
+                $('#hud').removeClass('hidden');
+                
+                // Detect touch device to show hints
+                if('ontouchstart' in window) $('#touchControls').css('display', 'flex');
+            }
+
+            function gameOver() {
+                state = 'GAMEOVER';
+                cancelAnimationFrame(animationId);
+                
+                if (score > highScore) {
+                    highScore = score;
+                    localStorage.setItem('midnightHighScore', highScore);
+                }
+
+                $('#finalScore').text(score);
+                $('#finalSpeed').text(speed * 10); // Fake km/h
+                $('#highScore').text(highScore);
+                
+                $('#hud').addClass('hidden');
+                $('#gameOverScreen').removeClass('hidden');
+            }
+
+            // Initial Setup
+            $('#startBtn').click(startGame);
+            $('#restartBtn').click(() => {
+                // Reset loop
+                loop();
+                startGame();
+            });
+
+            // Start animation loop initially for menu background
+            loop();
+        });
+    </script>
+</body>
+</html>
