@@ -1,164 +1,3 @@
-
-
-
-
-GLM-5
-
-Share Session
-Sign in
- bustakan aku game simulasi berjudul "ngabuburit simulator" dari awal hinggal akhir hanya menggunakan html js jquery tanpa membutuhkan server maupun hal2 macam node js dll, game ini dibuat sebagai game endless yg hanya akan tamat jika user kalah.. 
-
-Thought Process
-
-
-
-
-
-
-
-
-Ngabuburit Simulator
-Game simulasi menunggu waktu berbuka puasa! Saya akan buat game endless dengan sistem stats, aktivitas, dan event random yang menarik.
-
-Konsep Game:
-
-Player harus bertahan menunggu azan Maghrib sambil mengelola stats: Lapar, Haus, Sabar, dan Uang
-Setiap hari semakin sulit - stats menurun lebih cepat
-Game over jika Sabar habis sebelum waktu buka
-Pilih aktivitas dengan konsekuensi berbeda
-Penjelasan Fitur Game:
-Mekanik Utama:
-Stats Management:
-Lapar - Naik seiring waktu, makin tinggi = sabar turun cepat
-Haus - Sama seperti lapar, naik otomatis
-Sabar - Stat utama! Kalau habis = Game Over
-Uang - Dipakai untuk beli takjil atau aktivitas tertentu
-Sistem Waktu:
-Mulai jam 15:00, target Maghrib jam 18:00
-Setiap aktivitas memakan waktu berbeda
-Progress bar menunjukkan seberapa dekat ke buka
-Aktivitas (9 pilihan):
-Setiap aktivitas punya efek berbeda terhadap stats
-Ada yang gratis, ada yang butuh uang
-Beberapa memberikan item untuk buka nanti
-Random Events (8 jenis):
-Teman makan di depanmu
-Promo makanan
-Macet
-Godaan kulkas
-Dan lainnya...
-Player harus pilih respons yang strategis
-Sistem Kesulitan:
-Setiap hari selesai, difficulty naik 15%
-Stats decay lebih cepat
-Start stats sedikit lebih buruk
-Tapi dapat bonus uang dan sabar
-Win/Lose:
-Win: Bertahan sampai Maghrib, lanjut hari berikutnya
-Lose: Sabar habis sebelum Maghrib
-Game ini benar-benar endless - akan semakin sulit setiap harinya sampai player pasti kalah!
-
- bgmn jika membuat endless running game semacam flappy bird
-
-Thought Process
-
-
-
-
-
-
-
-html
-
-
-
-
-
-
-
-
-
-
-
-
-Tentu, ini contoh implementasi Endless Running Game mirip Flappy Bird menggunakan HTML5 Canvas, JavaScript, dan jQuery.
-
-Saya membuat game ini dengan tema sederhana: "Sky Bird". Burung terbang menghindari pipa hijau. Semakin jauh terbang, skor bertambah. Game berakhir jika menyentuh pipa atau jatuh ke tanah.
-
-Konsep Game:
-Canvas Rendering: Menggambar burung, pipa, dan background secara manual menggunakan API Canvas (lebih smooth untuk game action).
-Physics: Gravitas menarik burung ke bawah, player menekan tombol untuk "Flap" (terbang ke atas).
-Procedural Generation: Pipa muncul secara random dari kanan layar dan bergerak ke kiri.
-Collision Detection: Mendeteksi tabrakan antara burung dan pipa/ground.
-State Management: Menu awal, Main, dan Game Over.
-Berikut kodenya (save sebagai file .html):
-
-Fitur yang Diimplementasikan:
-Pure HTML/JS/jQuery: Tidak butuh asset gambar eksternal. Semua sprite (burung, pipa, awan) digambar menggunakan perintah Canvas (ctx.fillRect, ctx.arc).
-Responsive: Container menyesuaikan layar HP (max-width: 100vw), namun menjaga rasio aspek tetap stabil di dalam canvas.
-Physics Simulation:
-Gravity: Terus menarik burung ke bawah.
-Velocity: Kecepatan gerak vertikal.
-Rotation: Burung akan "nose down" saat jatuh dan "nose up" saat melompat.
-Endless Mechanic: Pipa di-spawn terus menerus (pipes.update) dan dihapus saat keluar layar untuk menghemat memori.
-Difficulty Scaling (Opsional): Dalam kode ini kecepatan pipa konstan, tapi kamu bisa menambah pipeSpeed++ di dalam loop untuk membuatnya makin cepat seiring skor bertambah.
-Local Storage: Menyimpan skor tertinggi di browser pengguna.
-
-
-
-Send a Message
-
-
-
-
-File
-
-Share
-
-
-
-
-Preview
-
-Code
-
-Copy
-1
-2
-3
-4
-5
-6
-7
-8
-9
-10
-11
-12
-13
-14
-15
-16
-17
-18
-19
-20
-21
-22
-23
-24
-25
-26
-27
-28
-29
-30
-31
-32
-33
-34
-35
-36
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -195,4 +34,419 @@ Copy
             height: 600px;
             max-width: 100vw;
             max-height: 100vh;
-Z.ai - Free AI Chatbot & Agent powered by GLM-5 & GLM-4.7
+            border: 4px solid #333;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            background-color: var(--sky-top);
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* UI Overlays */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: var(--ui-bg);
+            color: white;
+            text-align: center;
+            z-index: 10;
+            transition: opacity 0.3s ease;
+        }
+
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+            text-shadow: 2px 2px 0 #000;
+            font-family: 'Arial Black', sans-serif;
+        }
+
+        p {
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+        }
+
+        button {
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            background: #FFC107;
+            color: #333;
+            border: 4px solid #333;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 4px 0 #333;
+            transition: transform 0.1s;
+        }
+
+        button:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 #333;
+        }
+
+        #scoreBoard {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 0 #000;
+            z-index: 5;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="scoreBoard" class="hidden">0</div>
+
+        <!-- Start Screen -->
+        <div id="startScreen" class="overlay">
+            <h1>SKY BIRD</h1>
+            <p>Tekan Spasi atau Tap Layar untuk Terbang</p>
+            <button id="startBtn">MULAI</button>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="gameOverScreen" class="overlay hidden">
+            <h1>GAME OVER</h1>
+            <p>Skor: <span id="finalScore">0</span></p>
+            <p>Terbaik: <span id="highScore">0</span></p>
+            <button id="restartBtn">COBA LAGI</button>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            // --- KONFIGURASI GAME ---
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Ukuran internal canvas (logical resolution)
+            const GAME_WIDTH = 400;
+            const GAME_HEIGHT = 600;
+            canvas.width = GAME_WIDTH;
+            canvas.height = GAME_HEIGHT;
+
+            // Game State
+            let gameState = 'MENU'; // MENU, PLAYING, GAMEOVER
+            let frameCount = 0;
+            let score = 0;
+            let highScore = localStorage.getItem('flappyHighScore') || 0;
+            
+            // Fisika
+            let gravity = 0.25;
+            let jumpForce = -4.5;
+            let pipeSpeed = 2;
+            
+            // Objek Player (Bird)
+            const bird = {
+                x: 50,
+                y: GAME_HEIGHT / 2,
+                width: 34,
+                height: 24,
+                velocity: 0,
+                rotation: 0,
+                
+                draw: function() {
+                    ctx.save();
+                    ctx.translate(this.x + this.width/2, this.y + this.height/2);
+                    ctx.rotate(this.rotation);
+                    
+                    // Gambar Burung (Simple Pixel Art Style)
+                    // Body
+                    ctx.fillStyle = '#FFD700'; // Kuning
+                    ctx.fillRect(-this.width/2, -this.height/2, this.width, this.height);
+                    
+                    // Wing
+                    ctx.fillStyle = '#FFA500'; // Orange
+                    if (frameCount % 10 < 5) {
+                        ctx.fillRect(-5, 0, 12, 8); // Wing Up
+                    } else {
+                        ctx.fillRect(-5, 2, 12, 8); // Wing Down
+                    }
+                    
+                    // Eye
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(5, -8, 10, 10);
+                    ctx.fillStyle = 'black';
+                    ctx.fillRect(10, -6, 4, 6);
+                    
+                    // Beak
+                    ctx.fillStyle = '#FF6347';
+                    ctx.beginPath();
+                    ctx.moveTo(15, 0);
+                    ctx.lineTo(25, 5);
+                    ctx.lineTo(15, 5);
+                    ctx.fill();
+                    
+                    ctx.restore();
+                },
+                
+                update: function() {
+                    this.velocity += gravity;
+                    this.y += this.velocity;
+                    
+                    // Rotation logic
+                    if (this.velocity < 0) {
+                        this.rotation = -25 * (Math.PI / 180); // Rotate up
+                    } else {
+                        // Rotate down smoothly
+                        const targetRotation = 90 * (Math.PI / 180);
+                        if (this.rotation < targetRotation) {
+                            this.rotation += 0.05;
+                        }
+                    }
+                },
+                
+                jump: function() {
+                    this.velocity = jumpForce;
+                }
+            };
+
+            // Array Pipa
+            const pipes = {
+                list: [],
+                width: 52,
+                gap: 150,
+                
+                update: function() {
+                    // Tambah pipa baru setiap 100 frame
+                    if (frameCount % 100 === 0) {
+                        const minHeight = 50;
+                        const maxHeight = GAME_HEIGHT - this.gap - minHeight - 50; // 50 for ground
+                        const topHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1) + minHeight);
+                        
+                        this.list.push({
+                            x: GAME_WIDTH,
+                            topHeight: topHeight,
+                            bottomY: topHeight + this.gap,
+                            passed: false
+                        });
+                    }
+                    
+                    // Gerakkan & Hapus pipa
+                    for (let i = 0; i < this.list.length; i++) {
+                        let p = this.list[i];
+                        p.x -= pipeSpeed;
+                        
+                        // Cek skor
+                        if (!p.passed && p.x + this.width < bird.x) {
+                            score++;
+                            $('#scoreBoard').text(score);
+                            p.passed = true;
+                        }
+                        
+                        // Hapus jika keluar layar
+                        if (p.x + this.width < 0) {
+                            this.list.shift();
+                            i--;
+                        }
+                    }
+                },
+                
+                draw: function() {
+                    for (let p of this.list) {
+                        // Pipa Atas
+                        ctx.fillStyle = '#73BF2E';
+                        ctx.fillRect(p.x, 0, this.width, p.topHeight);
+                        // Border Atas
+                        ctx.fillStyle = '#558B2F';
+                        ctx.fillRect(p.x, p.topHeight - 20, this.width, 20);
+                        ctx.strokeRect(p.x, 0, this.width, p.topHeight);
+
+                        // Pipa Bawah
+                        ctx.fillStyle = '#73BF2E';
+                        ctx.fillRect(p.x, p.bottomY, this.width, GAME_HEIGHT - p.bottomY);
+                        // Border Bawah
+                        ctx.fillStyle = '#558B2F';
+                        ctx.fillRect(p.x, p.bottomY, this.width, 20);
+                        ctx.strokeRect(p.x, p.bottomY, this.width, GAME_HEIGHT - p.bottomY);
+                    }
+                }
+            };
+
+            // Background & Ground
+            const bg = { x: 0, speed: 0.5 };
+            const ground = { x: 0, y: GAME_HEIGHT - 50, speed: pipeSpeed };
+
+            function drawBackground() {
+                // Sky
+                let gradient = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
+                gradient.addColorStop(0, '#4EC5F1');
+                gradient.addColorStop(1, '#87CEEB');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+                // Clouds (simple)
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.beginPath(); ctx.arc(100 - (frameCount * bg.speed) % 500, 80, 30, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(120 - (frameCount * bg.speed) % 500, 70, 40, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(450 - (frameCount * bg.speed) % 500, 150, 50, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(480 - (frameCount * bg.speed) % 500, 140, 40, 0, Math.PI*2); ctx.fill();
+            }
+
+            function drawGround() {
+                ctx.fillStyle = '#DED895'; // Ground color
+                ctx.fillRect(0, ground.y, GAME_WIDTH, 50);
+                
+                // Garis rumput
+                ctx.fillStyle = '#8B4513';
+                ctx.fillRect(0, ground.y, GAME_WIDTH, 5);
+                
+                // Animasi tanah bergerak
+                ctx.fillStyle = '#C4B454';
+                for(let i=0; i<15; i++) {
+                    let xPos = (i * 40 - frameCount * ground.speed) % (GAME_WIDTH + 40);
+                    ctx.fillRect(xPos, ground.y + 20, 20, 5);
+                }
+            }
+
+            // Collision Detection (AABB)
+            function checkCollision() {
+                // Ground & Ceiling
+                if (bird.y + bird.height >= ground.y || bird.y < 0) {
+                    return true;
+                }
+
+                // Pipes
+                for (let p of pipes.list) {
+                    // Box collision
+                    // Bird box: bird.x, bird.y, bird.width, bird.height
+                    // Top Pipe box: p.x, 0, pipes.width, p.topHeight
+                    // Bottom Pipe box: p.x, p.bottomY, pipes.width, GAME_HEIGHT - p.bottomY
+                    
+                    // Simplify collision dengan sedikit padding agar lebih adil (hitbox lebih kecil dari sprite)
+                    const bPadX = 4;
+                    const bPadY = 4;
+                    
+                    if (
+                        bird.x + bPadX < p.x + pipes.width &&
+                        bird.x + bird.width - bPadX > p.x &&
+                        bird.y + bPadY < p.topHeight &&
+                        bird.y + bird.height - bPadY > 0
+                    ) return true;
+
+                    if (
+                        bird.x + bPadX < p.x + pipes.width &&
+                        bird.x + bird.width - bPadX > p.x &&
+                        bird.y + bPadY < GAME_HEIGHT &&
+                        bird.y + bird.height - bPadY > p.bottomY
+                    ) return true;
+                }
+                return false;
+            }
+
+            // --- GAME LOOP UTAMA ---
+            function loop() {
+                // Clear Canvas
+                ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+                drawBackground();
+                
+                if (gameState === 'PLAYING') {
+                    frameCount++;
+                    
+                    // Update Objects
+                    bird.update();
+                    pipes.update();
+                    
+                    // Collision Check
+                    if (checkCollision()) {
+                        gameOver();
+                    }
+                } else if (gameState === 'MENU') {
+                    // Animasi menu (burung melayang)
+                    bird.y = (GAME_HEIGHT/2) + Math.sin(frameCount * 0.05) * 20;
+                    bird.draw();
+                    frameCount++;
+                }
+
+                // Draw Objects
+                pipes.draw();
+                drawGround();
+                
+                if (gameState !== 'MENU') {
+                    bird.draw();
+                }
+
+                requestAnimationFrame(loop);
+            }
+
+            // --- EVENT HANDLERS ---
+            function startGame() {
+                gameState = 'PLAYING';
+                score = 0;
+                frameCount = 0;
+                bird.y = GAME_HEIGHT / 2;
+                bird.velocity = 0;
+                pipes.list = [];
+                $('#startScreen').addClass('hidden');
+                $('#gameOverScreen').addClass('hidden');
+                $('#scoreBoard').removeClass('hidden').text('0');
+            }
+
+            function gameOver() {
+                gameState = 'GAMEOVER';
+                if (score > highScore) {
+                    highScore = score;
+                    localStorage.setItem('flappyHighScore', highScore);
+                }
+                $('#finalScore').text(score);
+                $('#highScore').text(highScore);
+                $('#gameOverScreen').removeClass('hidden');
+                $('#scoreBoard').addClass('hidden');
+            }
+
+            function handleInput() {
+                if (gameState === 'PLAYING') {
+                    bird.jump();
+                } else if (gameState === 'GAMEOVER') {
+                    // Optional: klik layar untuk restart langsung
+                }
+            }
+
+            // Binding Events via jQuery
+            $('#startBtn').on('click', startGame);
+            $('#restartBtn').on('click', startGame);
+            
+            // Keyboard & Touch support
+            $(document).on('keydown', function(e) {
+                if (e.code === 'Space') {
+                    e.preventDefault(); // prevent scroll
+                    if (gameState === 'MENU') startGame();
+                    else handleInput();
+                }
+            });
+
+            $('#gameContainer').on('click touchstart', function(e) {
+                e.preventDefault();
+                if (gameState === 'PLAYING' || gameState === 'GAMEOVER') {
+                    handleInput();
+                }
+            });
+
+            // Mulai Loop
+            loop();
+        });
+    </script>
+</body>
+</html>
